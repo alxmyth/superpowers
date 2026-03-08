@@ -24,10 +24,12 @@ Load plan, review critically, execute tasks in batches, report for review betwee
 1. Call `TaskList` to check for existing native tasks
 2. **CRITICAL - Locate tasks file:** Try `<plan-path>.tasks.json`, if not found glob for matching `.tasks.json`
 3. If tasks file exists AND native tasks empty: recreate from JSON using TaskCreate, restore blockedBy with TaskUpdate
-4. If native tasks exist: verify they match plan, resume from first `pending`/`in_progress`
+4. If native tasks exist: verify they match plan, resume from first `pending`/`in_progress`/`failed`
 5. If neither: proceed to Step 1b to bootstrap from plan
 
-Update `.tasks.json` after every task status change.
+**Resuming parallel groups:** If `.tasks.json` shows tasks as `"in_progress"` in a parallel group, check for committed task branches (`git branch --list 'task-*'`). Merge completed branches, then re-dispatch only tasks without a committed branch.
+
+Update `.tasks.json` after every task status change (including `"in_progress"` and `"failed"`, not just `"completed"`).
 
 ### Step 0.5: Verify Workspace (Worktree Check)
 
@@ -58,7 +60,22 @@ If TaskList returned no tasks or tasks don't match plan:
 4. Call `TaskList` and verify blockedBy relationships show correctly (e.g., "blocked by #1, #2")
 
 ### Step 2: Execute Batch
-**Default: First 3 tasks**
+**Default: First 3 tasks (or next parallel group, whichever is larger)**
+
+#### Check for Parallel Groups
+
+Before executing, read the `.tasks.json` `parallelGroups` array. If the current batch contains tasks from a group with `"execution": "parallel"`:
+
+1. **Verify file independence:** Check that `filesTouched` arrays have zero overlap across tasks in the group — including commonly missed shared files (barrel exports, configs, test fixtures). If any overlap: warn user and fall back to sequential. Maximum 5 tasks per parallel group.
+2. **Sync `.tasks.json`:** Set all group tasks to `"in_progress"` before spawning (crash safety).
+3. **Spawn concurrent agents on separate branches:** Dispatch one Agent per task in a **single message** (concurrent execution). Use the prompt structure from `superpowers-extended-cc:subagent-driven-development/teammate-prompt.md` — each teammate creates its own git branch, implements, tests, and commits to that branch.
+4. **Merge branches:** After all agents complete, merge each task branch into the feature branch sequentially. If any merge conflicts, stop and report to user.
+5. **Run verification:** Execute the project's full test suite to confirm all concurrent changes work together.
+6. **Sync `.tasks.json`** for all completed tasks.
+
+If the group is `"execution": "sequential"` or no parallel groups exist, use the standard sequential flow below.
+
+#### Sequential Execution (default)
 
 For each task:
 1. Mark as in_progress

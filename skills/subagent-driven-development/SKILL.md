@@ -5,9 +5,9 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Subagent-Driven Development
 
-Execute plan by dispatching fresh subagent per task, with two-stage review after each: spec compliance review first, then code quality review.
+Execute plan by dispatching fresh subagent per task, with two-stage review after each: spec compliance review first, then code quality review. Independent tasks run concurrently as agent teammates.
 
-**Core principle:** Fresh subagent per task + two-stage review (spec then quality) = high quality, fast iteration
+**Core principle:** Fresh subagent per task + two-stage review (spec then quality) + parallel execution of independent tasks = high quality, fast iteration
 
 ## When to Use
 
@@ -37,12 +37,55 @@ digraph when_to_use {
 
 ## The Process
 
+### Execution Model: Groups → Tasks
+
+The plan's `.tasks.json` defines **parallel groups**. The controller processes groups in order:
+
 ```dot
 digraph process {
     rankdir=TB;
 
+    "Read plan + .tasks.json" [shape=box];
+    "Extract parallel groups\n(if absent, treat all as\none sequential group)" [shape=box];
+    "Next group" [shape=box];
+    "Group execution = parallel?" [shape=diamond];
+    "Spawn agent team:\none teammate per task\n(separate branches)" [shape=box style=filled fillcolor=lightyellow];
+    "Execute tasks sequentially\n(same as before)" [shape=box];
+    "All teammates done?\nMerge branches" [shape=diamond];
+    "All sequential tasks done?" [shape=diamond];
+    "Dispatch parallel spec reviewers\n(one per task)" [shape=box];
+    "Dispatch group code quality reviewer" [shape=box];
+    "More groups?" [shape=diamond];
+    "Dispatch final code reviewer\nfor entire implementation" [shape=box];
+    "finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
+
+    "Read plan + .tasks.json" -> "Extract parallel groups";
+    "Extract parallel groups" -> "Next group";
+    "Next group" -> "Group execution = parallel?";
+    "Group execution = parallel?" -> "Spawn agent team:\none teammate per task\n(separate branches)" [label="yes"];
+    "Group execution = parallel?" -> "Execute tasks sequentially\n(same as before)" [label="no"];
+    "Spawn agent team:\none teammate per task\n(separate branches)" -> "All teammates done?\nMerge branches";
+    "All teammates done?\nMerge branches" -> "Dispatch parallel spec reviewers\n(one per task)" [label="yes"];
+    "Dispatch parallel spec reviewers\n(one per task)" -> "Dispatch group code quality reviewer";
+    "Execute tasks sequentially\n(same as before)" -> "All sequential tasks done?";
+    "All sequential tasks done?" -> "Dispatch group code quality reviewer" [label="yes"];
+    "Dispatch group code quality reviewer" -> "More groups?";
+    "More groups?" -> "Next group" [label="yes"];
+    "More groups?" -> "Dispatch final code reviewer\nfor entire implementation" [label="no"];
+    "Dispatch final code reviewer\nfor entire implementation" -> "finishing-a-development-branch";
+}
+```
+
+### Sequential Task Flow (unchanged)
+
+For tasks in sequential groups, the original per-task flow applies:
+
+```dot
+digraph sequential_task {
+    rankdir=TB;
+
     subgraph cluster_per_task {
-        label="Per Task";
+        label="Per Sequential Task";
         "Dispatch implementer subagent (./implementer-prompt.md)" [shape=box];
         "Implementer subagent asks questions?" [shape=diamond];
         "Answer questions, provide context" [shape=box];
@@ -56,12 +99,6 @@ digraph process {
         "TaskUpdate: mark task completed" [shape=box];
     }
 
-    "Read plan, extract tasks, TaskCreate for each with full text" [shape=box];
-    "More tasks remain?" [shape=diamond];
-    "Dispatch final code reviewer subagent for entire implementation" [shape=box];
-    "Use superpowers-extended-cc:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
-
-    "Read plan, extract tasks, TaskCreate for each with full text" -> "Dispatch implementer subagent (./implementer-prompt.md)";
     "Dispatch implementer subagent (./implementer-prompt.md)" -> "Implementer subagent asks questions?";
     "Implementer subagent asks questions?" -> "Answer questions, provide context" [label="yes"];
     "Answer questions, provide context" -> "Dispatch implementer subagent (./implementer-prompt.md)";
@@ -75,16 +112,94 @@ digraph process {
     "Code quality reviewer subagent approves?" -> "Implementer subagent fixes quality issues" [label="no"];
     "Implementer subagent fixes quality issues" -> "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [label="re-review"];
     "Code quality reviewer subagent approves?" -> "TaskUpdate: mark task completed" [label="yes"];
-    "TaskUpdate: mark task completed" -> "More tasks remain?";
-    "More tasks remain?" -> "Dispatch implementer subagent (./implementer-prompt.md)" [label="yes"];
-    "More tasks remain?" -> "Dispatch final code reviewer subagent for entire implementation" [label="no"];
-    "Dispatch final code reviewer subagent for entire implementation" -> "Use superpowers-extended-cc:finishing-a-development-branch";
 }
+```
+
+### Parallel Group Execution
+
+For groups marked `"execution": "parallel"`, spawn an **agent team**:
+
+**Maximum group size: 5 teammates.** Beyond this, coordination overhead and API rate limits outweigh parallelism gains. If a parallel group has more than 5 tasks, split it into sub-groups of 3-5.
+
+#### Step 1: Verify file independence
+
+Before spawning, check that `filesTouched` arrays across tasks in the group have zero overlap. Also check for common shared files that plan authors miss: barrel exports (`index.ts`, `__init__.py`), config files (`package.json`, `pyproject.toml`), shared test fixtures (`conftest.py`). If any overlap is detected, **fall back to sequential execution** and warn the user.
+
+#### Step 2: Record group start
+
+Sync `.tasks.json`: set all tasks in the group to `"in_progress"` with current timestamp. This ensures that if the session crashes, a resumed session can see these tasks were started (not still `"pending"`).
+
+#### Step 3: Spawn teammates on separate branches
+
+Dispatch one Agent per task, all in a **single message** (this makes them concurrent). Each teammate uses `./teammate-prompt.md` — creates its own git branch (`task-N-<name>`), implements, tests, commits to that branch, and self-reviews.
+
+```
+# All in ONE message for concurrency — each teammate creates its own branch
+Agent tool:
+  description: "Implement Task 2: User API"
+  prompt: [teammate-prompt.md filled with Task 2]
+
+Agent tool:
+  description: "Implement Task 3: Product API"
+  prompt: [teammate-prompt.md filled with Task 3]
+
+Agent tool:
+  description: "Implement Task 4: Search service"
+  prompt: [teammate-prompt.md filled with Task 4]
+```
+
+#### Step 4: Merge teammate branches
+
+After all teammates complete, the controller merges each task branch into the feature branch:
+
+```bash
+git checkout <feature-branch>
+git merge task-2-user-api --no-ff -m "Merge Task 2: User API"
+git merge task-3-product-api --no-ff -m "Merge Task 3: Product API"
+git merge task-4-search-service --no-ff -m "Merge Task 4: Search service"
+```
+
+If a merge conflicts, **stop and report to the user** — do not force-resolve. Conflicts mean the `filesTouched` declarations were incomplete.
+
+If a teammate failed (returned an error or incomplete work), skip its branch merge and mark its task as `"failed"` in `.tasks.json`. The remaining tasks can still proceed.
+
+#### Step 5: Spec compliance review (independent, parallel)
+
+Dispatch one spec reviewer per task, all in a **single message** for concurrency. Each uses `./spec-reviewer-prompt.md` scoped to that task's commits:
+
+```
+# Parallel spec reviews — one per task, all concurrent
+Agent tool:
+  description: "Review spec compliance for Task 2"
+  prompt: [spec-reviewer-prompt.md with Task 2's spec and diff]
+
+Agent tool:
+  description: "Review spec compliance for Task 3"
+  prompt: [spec-reviewer-prompt.md with Task 3's spec and diff]
+
+Agent tool:
+  description: "Review spec compliance for Task 4"
+  prompt: [spec-reviewer-prompt.md with Task 4's spec and diff]
+```
+
+If any spec review fails, dispatch a fix subagent for that task, then re-run its spec review.
+
+#### Step 6: Group code quality review
+
+After all spec reviews pass, dispatch a single code quality reviewer for the group's combined diff (from the commit before the group started to HEAD).
+
+#### Step 7: Sync completion
+
+Mark all tasks as `"completed"` in `.tasks.json`. Clean up task branches:
+
+```bash
+git branch -d task-2-user-api task-3-product-api task-4-search-service
 ```
 
 ## Prompt Templates
 
-- `./implementer-prompt.md` - Dispatch implementer subagent
+- `./implementer-prompt.md` - Dispatch implementer subagent (sequential tasks)
+- `./teammate-prompt.md` - Dispatch parallel teammate agent (parallel groups)
 - `./spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent
 - `./code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent
 
@@ -93,72 +208,80 @@ digraph process {
 ```
 You: I'm using Subagent-Driven Development to execute this plan.
 
-[Read plan file once: docs/plans/feature-plan.md]
-[Extract all 5 tasks with full text and context]
+[Read plan file + .tasks.json]
+[Extract parallel groups and all tasks]
 [TaskCreate for each task with full description]
 
-Task 1: Hook installation script
+=== Group 1 (sequential): Foundation ===
 
-[Get Task 1 text and context (already extracted)]
+Task 1: Database schema + shared types
+
 [Dispatch implementation subagent with full task text + context]
-
-Implementer: "Before I begin - should the hook be installed at user or system level?"
-
-You: "User level (~/.config/superpowers/hooks/)"
-
-Implementer: "Got it. Implementing now..."
-[Later] Implementer:
-  - Implemented install-hook command
-  - Added tests, 5/5 passing
-  - Self-review: Found I missed --force flag, added it
-  - Committed
+Implementer: Implemented schema, 3/3 tests passing, committed.
 
 [Dispatch spec compliance reviewer]
-Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
-
-[Get git SHAs, dispatch code quality reviewer]
-Code reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
-
-[Mark Task 1 complete]
-
-Task 2: Recovery modes
-
-[Get Task 2 text and context (already extracted)]
-[Dispatch implementation subagent with full task text + context]
-
-Implementer: [No questions, proceeds]
-Implementer:
-  - Added verify/repair modes
-  - 8/8 tests passing
-  - Self-review: All good
-  - Committed
-
-[Dispatch spec compliance reviewer]
-Spec reviewer: ❌ Issues:
-  - Missing: Progress reporting (spec says "report every 100 items")
-  - Extra: Added --json flag (not requested)
-
-[Implementer fixes issues]
-Implementer: Removed --json flag, added progress reporting
-
-[Spec reviewer reviews again]
-Spec reviewer: ✅ Spec compliant now
+Spec reviewer: ✅ Spec compliant
 
 [Dispatch code quality reviewer]
-Code reviewer: Strengths: Solid. Issues (Important): Magic number (100)
-
-[Implementer fixes]
-Implementer: Extracted PROGRESS_INTERVAL constant
-
-[Code reviewer reviews again]
 Code reviewer: ✅ Approved
 
-[Mark Task 2 complete]
+[Mark Task 1 complete, sync .tasks.json]
 
-...
+=== Group 2 (parallel): Independent Features ===
 
-[After all tasks]
-[Dispatch final code-reviewer]
+[Verify file independence: Tasks 2, 3, 4 have zero file overlap ✅]
+[Check shared files: no barrel exports or configs affected ✅]
+[Sync .tasks.json: set Tasks 2, 3, 4 to "in_progress"]
+[Spawn 3 teammates concurrently in a single message]
+
+Teammate A (Task 2: User API):
+  - Branch: task-2-user-api
+  - Implemented user endpoints, 5/5 tests passing
+  - Files: src/users.py, tests/test_users.py (within ownership ✅)
+  - Self-review: Clean, follows patterns
+  - Committed to task-2-user-api branch
+
+Teammate B (Task 3: Product API):
+  - Branch: task-3-product-api
+  - Implemented product endpoints, 4/4 tests passing
+  - Files: src/products.py, tests/test_products.py (within ownership ✅)
+  - Self-review: Clean, follows patterns
+  - Committed to task-3-product-api branch
+
+Teammate C (Task 4: Search service):
+  - Branch: task-4-search-service
+  - Implemented search, 6/6 tests passing
+  - Files: src/search.py, tests/test_search.py (within ownership ✅)
+  - Self-review: Clean, follows patterns
+  - Committed to task-4-search-service branch
+
+[All 3 completed concurrently — wall time = slowest teammate, not sum]
+
+[Merge branches sequentially into feature branch]
+git merge task-2-user-api --no-ff ✅
+git merge task-3-product-api --no-ff ✅
+git merge task-4-search-service --no-ff ✅
+
+[Dispatch 3 parallel spec reviewers — one per task]
+Spec reviewer (Task 2): ✅ Spec compliant
+Spec reviewer (Task 3): ✅ Spec compliant
+Spec reviewer (Task 4): ✅ Spec compliant
+
+[Dispatch group code quality reviewer for combined diff]
+Group reviewer: Strengths: Clean separation. Issues: None. Approved.
+
+[Mark Tasks 2, 3, 4 complete, sync .tasks.json]
+[Clean up branches: git branch -d task-2-* task-3-* task-4-*]
+
+=== Group 3 (sequential): Integration ===
+
+Task 5: Integration tests + wiring
+
+[Dispatch implementation subagent]
+...standard sequential flow...
+
+[After all groups]
+[Dispatch final code-reviewer for entire implementation]
 Final reviewer: All requirements met, ready to merge
 
 Done!
@@ -202,14 +325,15 @@ Done!
 - Start implementation on main/master branch without explicit user consent
 - Skip reviews (spec compliance OR code quality)
 - Proceed with unfixed issues
-- Dispatch multiple implementation subagents in parallel (conflicts)
+- Parallelize tasks that share files (check `filesTouched` — any overlap = sequential)
+- Parallelize tasks without verifying file independence first
 - Make subagent read plan file (provide full text instead)
 - Skip scene-setting context (subagent needs to understand where task fits)
 - Ignore subagent questions (answer before letting them proceed)
 - Accept "close enough" on spec compliance (spec reviewer found issues = not done)
 - Skip review loops (reviewer found issues = implementer fixes = review again)
 - Let implementer self-review replace actual review (both are needed)
-- **Start code quality review before spec compliance is ✅** (wrong order)
+- **Start code quality review before spec compliance is ✅** (both sequential and parallel tasks require independent spec review to pass first)
 - Move to next task while either review has open issues
 
 **If subagent asks questions:**
@@ -229,14 +353,21 @@ Done!
 
 ## Task Persistence Sync
 
-After marking each task completed via `TaskUpdate`, update the `.tasks.json` file to stay in sync:
+Update `.tasks.json` at every status transition, not just on completion:
 
 1. Read `<plan-path>.tasks.json`
-2. Set the task's `"status"` to `"completed"`
+2. Set the task's `"status"` to the new status (`"in_progress"`, `"completed"`, or `"failed"`)
 3. Set `"lastUpdated"` to current ISO timestamp
 4. Write the file back
 
-This ensures cross-session resume works correctly. Without this, a new session loading `.tasks.json` would see completed tasks as `"pending"`.
+**Valid status values:** `"pending"`, `"in_progress"`, `"completed"`, `"failed"`
+
+**For parallel groups:** Set all group tasks to `"in_progress"` BEFORE spawning teammates. This ensures that if the session crashes mid-group, a resumed session sees `"in_progress"` (not `"pending"`) and can check git history for committed branches before re-dispatching.
+
+**Cross-session resume with parallel groups:** If `.tasks.json` shows tasks as `"in_progress"`, the resumed session should:
+1. Check for task branches (`git branch --list 'task-*'`) to identify completed work
+2. Merge any completed task branches that haven't been merged yet
+3. Re-dispatch only tasks with no committed branch
 
 ## Integration
 

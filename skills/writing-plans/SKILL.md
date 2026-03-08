@@ -59,6 +59,8 @@ TaskList
 
 **Tech Stack:** [Key technologies/libraries]
 
+**Parallel Groups:** [Summary of which task groups can run concurrently — e.g., "Tasks 2-4 (parallel), Task 5 (sequential)"]
+
 ---
 ```
 
@@ -66,6 +68,8 @@ TaskList
 
 ````markdown
 ### Task N: [Component Name]
+
+**Parallel Group: N** — [group label, e.g., "Foundation" or "Independent Features"]
 
 **Files:**
 - Create: `exact/path/to/file.py`
@@ -111,6 +115,46 @@ git commit -m "feat: add specific feature"
 - Exact commands with expected output
 - Reference relevant skills with @ syntax
 - DRY, YAGNI, TDD, frequent commits
+
+## Identifying Parallel Execution Groups
+
+After writing all tasks, analyze file dependencies to identify which tasks can run concurrently.
+
+**Rules for parallel grouping:**
+1. Tasks that touch **no overlapping files** (create, modify, or test) can run in parallel
+2. Tasks that share files MUST be in different groups with sequential ordering
+3. Foundation tasks (shared types, config, schemas) are typically Group 1 (sequential)
+4. Feature tasks building on the foundation are often parallelizable
+5. Integration/glue tasks that wire features together must come after their dependencies
+6. Maximum **5 tasks** per parallel group (API rate limits and coordination overhead)
+
+**Commonly missed shared files — check every parallel group for these:**
+- Barrel exports: `index.ts`, `__init__.py`, `mod.rs`
+- Package manifests: `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`
+- Config files: `settings.py`, `.env.example`, `config.json`
+- Test infrastructure: `conftest.py`, `jest.config.ts`, `setupTests.ts`
+- Type definitions: shared `types.ts`, `interfaces.py`, `models.py`
+- Documentation: `README.md`, `CHANGELOG.md`
+
+If ANY task in a parallel group might touch one of these files, either move it to a sequential group or explicitly list the file in `filesTouched` so the overlap check catches it.
+
+**How to assign groups:**
+- **Group 1:** Foundation — tasks that create shared infrastructure. Run sequentially first.
+- **Group 2+:** Independent features — tasks with no file overlap. Run in parallel within the group.
+- **Final Group:** Integration — tasks that wire everything together. Run sequentially last.
+
+**Example grouping:**
+```
+Group 1 (sequential):  Task 1 — Database schema + shared types
+Group 2 (parallel):    Task 2 — User API endpoint
+                       Task 3 — Product API endpoint
+                       Task 4 — Search service
+Group 3 (sequential):  Task 5 — Integration tests + wiring
+```
+
+Tasks 2, 3, 4 each create their own files and tests, never touching files from other tasks in the group. The execution skills will spawn concurrent agent teammates for parallel groups.
+
+**When in doubt, make it sequential.** False parallelism (tasks that actually share files) causes merge conflicts and wasted work. Only group tasks as parallel when you are certain they have zero file overlap.
 
 ## Execution Handoff
 
@@ -200,13 +244,28 @@ If the plan is saved to `docs/plans/2026-01-15-feature.md`, the tasks file MUST 
 ```json
 {
   "planPath": "docs/plans/2026-01-15-feature.md",
+  "parallelGroups": [
+    {"group": 1, "label": "Foundation", "execution": "sequential"},
+    {"group": 2, "label": "Independent Features", "execution": "parallel"},
+    {"group": 3, "label": "Integration", "execution": "sequential"}
+  ],
   "tasks": [
-    {"id": 0, "subject": "Task 0: ...", "status": "pending"},
-    {"id": 1, "subject": "Task 1: ...", "status": "pending", "blockedBy": [0]}
+    {"id": 1, "subject": "Task 1: Database schema", "status": "pending", "parallelGroup": 1, "filesTouched": ["src/schema.py", "tests/test_schema.py"]},
+    {"id": 2, "subject": "Task 2: User API", "status": "pending", "blockedBy": [1], "parallelGroup": 2, "filesTouched": ["src/users.py", "tests/test_users.py"]},
+    {"id": 3, "subject": "Task 3: Product API", "status": "pending", "blockedBy": [1], "parallelGroup": 2, "filesTouched": ["src/products.py", "tests/test_products.py"]},
+    {"id": 4, "subject": "Task 4: Integration", "status": "pending", "blockedBy": [2, 3], "parallelGroup": 3, "filesTouched": ["src/app.py", "tests/test_integration.py"]}
   ],
   "lastUpdated": "<timestamp>"
 }
 ```
+
+**Key fields:**
+- `parallelGroups` — declares execution groups with labels and whether they run in parallel or sequentially
+- `parallelGroup` — per-task field linking it to a group number
+- `filesTouched` — all files a task creates, modifies, or tests — including shared infrastructure files like barrel exports, configs, and test fixtures (used by execution skills to verify no overlap within parallel groups)
+- `blockedBy` — optional array of task IDs that must complete before this task starts (drives execution ordering and native task dependencies)
+- `execution: "parallel"` — signals execution skills to spawn concurrent agent teammates for that group
+- `status` — valid values: `"pending"`, `"in_progress"`, `"completed"`, `"failed"`
 
 Both the plan `.md` and `.tasks.json` must be co-located in `docs/plans/`.
 

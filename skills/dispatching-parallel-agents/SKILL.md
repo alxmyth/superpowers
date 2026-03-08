@@ -63,13 +63,24 @@ Each agent gets:
 
 ### 3. Dispatch in Parallel
 
-```typescript
-// In Claude Code / AI environment
-Task("Fix agent-tool-abort.test.ts failures")
-Task("Fix batch-completion-behavior.test.ts failures")
-Task("Fix tool-approval-race-conditions.test.ts failures")
-// All three run concurrently
+Dispatch all agents in a **single message** so they run concurrently:
+
 ```
+# All in ONE message — this is what makes them concurrent
+Agent tool:
+  description: "Fix agent-tool-abort.test.ts failures"
+  prompt: [focused prompt with context]
+
+Agent tool:
+  description: "Fix batch-completion-behavior.test.ts failures"
+  prompt: [focused prompt with context]
+
+Agent tool:
+  description: "Fix tool-approval-race-conditions.test.ts failures"
+  prompt: [focused prompt with context]
+```
+
+**Key:** All Agent calls must be in the same message. Separate messages = sequential execution.
 
 ### 4. Review and Integrate
 
