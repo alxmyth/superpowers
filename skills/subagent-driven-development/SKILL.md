@@ -92,10 +92,12 @@ digraph sequential_task {
         "Implementer subagent implements, tests, commits, self-reviews" [shape=box];
 
         subgraph cluster_parallel_review {
-            label="Parallel Review (all dispatched simultaneously)";
+            label="Parallel Review + Red Team (all dispatched simultaneously)";
             style=dashed;
             "Dispatch spec reviewer (./spec-reviewer-prompt.md)" [shape=box];
             "Dispatch code quality reviewer (./code-quality-reviewer-prompt.md)" [shape=box];
+            "Dispatch skeptic reviewer (./red-team-prompt.md)" [shape=box style=filled fillcolor=lightyellow];
+            "Dispatch chaos tester (./red-team-prompt.md)" [shape=box style=filled fillcolor=lightyellow];
         }
 
         "Merge review feedback" [shape=box];
@@ -111,8 +113,12 @@ digraph sequential_task {
     "Implementer subagent asks questions?" -> "Implementer subagent implements, tests, commits, self-reviews" [label="no"];
     "Implementer subagent implements, tests, commits, self-reviews" -> "Dispatch spec reviewer (./spec-reviewer-prompt.md)";
     "Implementer subagent implements, tests, commits, self-reviews" -> "Dispatch code quality reviewer (./code-quality-reviewer-prompt.md)";
+    "Implementer subagent implements, tests, commits, self-reviews" -> "Dispatch skeptic reviewer (./red-team-prompt.md)";
+    "Implementer subagent implements, tests, commits, self-reviews" -> "Dispatch chaos tester (./red-team-prompt.md)";
     "Dispatch spec reviewer (./spec-reviewer-prompt.md)" -> "Merge review feedback";
     "Dispatch code quality reviewer (./code-quality-reviewer-prompt.md)" -> "Merge review feedback";
+    "Dispatch skeptic reviewer (./red-team-prompt.md)" -> "Merge review feedback";
+    "Dispatch chaos tester (./red-team-prompt.md)" -> "Merge review feedback";
     "Merge review feedback" -> "Any reviewer found issues?";
     "Any reviewer found issues?" -> "Implementer fixes issues" [label="yes"];
     "Implementer fixes issues" -> "Re-run only flagging reviewers";
@@ -124,6 +130,29 @@ digraph sequential_task {
 **Parallel review:** Spec reviewer and code quality reviewer are dispatched **simultaneously** in a single message. Their feedback is merged, and the implementer addresses all issues at once. Only reviewers that flagged issues re-run after fixes. This cuts review time roughly in half for passing tasks.
 
 **Rationale:** The previous sequential order (spec first, then quality) was motivated by "can't quality-review code that doesn't meet spec." In practice, both reviewers read code independently — running them in parallel and merging feedback is safe.
+
+**Red team agents:** Alongside spec and code quality reviewers, two adversarial agents are dispatched in parallel:
+
+- **Skeptic Reviewer** — questions whether the change actually solves the stated problem and whether tests prove what they claim. Uses `./red-team-prompt.md` (Mode: Skeptic Reviewer).
+- **Chaos Tester** — writes adversarial tests targeting boundary conditions, type coercion, state corruption, contract violations, and resource exhaustion. Uses `./red-team-prompt.md` (Mode: Chaos Tester).
+
+All four reviewers dispatch in a **single message** for maximum concurrency. Their feedback is merged together. Critical red team concerns must be addressed; minor concerns are optional.
+
+**Red team dispatch template:**
+```
+# All in ONE message — 4 parallel reviewers
+Agent tool: "Review spec compliance for Task N"
+  prompt: [spec-reviewer-prompt.md filled]
+
+Agent tool: "Review code quality for Task N"
+  prompt: [code-quality-reviewer-prompt.md filled]
+
+Agent tool: "Red team: skeptic review Task N"
+  prompt: [red-team-prompt.md skeptic mode filled]
+
+Agent tool: "Red team: chaos test Task N"
+  prompt: [red-team-prompt.md chaos tester mode filled]
+```
 
 ### Parallel Group Execution
 
@@ -177,6 +206,8 @@ If a teammate failed (returned an error or incomplete work), skip its branch mer
 
 Dispatch one spec reviewer per task, all in a **single message** for concurrency. Each uses `./spec-reviewer-prompt.md` scoped to that task's commits:
 
+Additionally, dispatch one skeptic reviewer per task in the same message (using `./red-team-prompt.md` Mode: Skeptic Reviewer). And dispatch one chaos tester per task (using `./red-team-prompt.md` Mode: Chaos Tester). All reviewers for all tasks dispatch in a single message for maximum concurrency.
+
 ```
 # Parallel spec reviews — one per task, all concurrent
 Agent tool:
@@ -212,6 +243,7 @@ git branch -d task-2-user-api task-3-product-api task-4-search-service
 - `./teammate-prompt.md` - Dispatch parallel teammate agent (parallel groups)
 - `./spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent
 - `./code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent
+- `./red-team-prompt.md` - Dispatch red team agents (skeptic reviewer + chaos tester)
 
 ## Example Workflow
 
