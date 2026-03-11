@@ -28,7 +28,7 @@ You MUST create a task for each of these items and complete them in order:
 1. **Explore project context** — check files, docs, recent commits
 2. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
 3. **Propose 2-3 approaches** — with trade-offs and your recommendation
-4. **Present design** — in sections scaled to their complexity, get user approval after each section
+4. **Present design + red team challenge** — present design sections, dispatch devil's advocate in parallel (see `subagent-driven-development/red-team-prompt.md`), get user approval incorporating any red team concerns
 5. **Write design doc** — save to `docs/plans/YYYY-MM-DD-<topic>-design.md` and commit
 6. **Transition to implementation** — invoke writing-plans skill to create implementation plan
 
@@ -40,6 +40,8 @@ digraph brainstorming {
     "Ask clarifying questions" [shape=box];
     "Propose 2-3 approaches" [shape=box];
     "Present design sections" [shape=box];
+    "Dispatch devil's advocate\n(parallel, non-blocking)" [shape=box style=filled fillcolor=lightyellow];
+    "Present red team concerns" [shape=box];
     "User approves design?" [shape=diamond];
     "Write design doc" [shape=box];
     "Invoke writing-plans skill" [shape=doublecircle];
@@ -47,7 +49,10 @@ digraph brainstorming {
     "Explore project context" -> "Ask clarifying questions";
     "Ask clarifying questions" -> "Propose 2-3 approaches";
     "Propose 2-3 approaches" -> "Present design sections";
+    "Present design sections" -> "Dispatch devil's advocate\n(parallel, non-blocking)";
     "Present design sections" -> "User approves design?";
+    "Dispatch devil's advocate\n(parallel, non-blocking)" -> "Present red team concerns";
+    "Present red team concerns" -> "User approves design?";
     "User approves design?" -> "Present design sections" [label="no, revise"];
     "User approves design?" -> "Write design doc" [label="yes"];
     "Write design doc" -> "Invoke writing-plans skill";
@@ -76,6 +81,14 @@ digraph brainstorming {
 - Ask after each section whether it looks right so far
 - Cover: architecture, components, data flow, error handling, testing
 - Be ready to go back and clarify if something doesn't make sense
+
+**Red team challenge (automatic):**
+- After drafting the design but before asking for user approval, dispatch the red team agent in devil's advocate mode
+- Use the template at `subagent-driven-development/red-team-prompt.md` (Mode: Devil's Advocate)
+- Dispatch in parallel — do NOT wait for it to complete before presenting the design to the user
+- When the red team returns, present its concerns alongside or after the design section
+- The user decides which concerns to address — red team concerns are advisory, not blocking
+- If the red team finds nothing critical, mention that: "Red team found no critical concerns"
 
 ## After the Design
 
