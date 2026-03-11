@@ -50,7 +50,7 @@ digraph process {
     "Next group" [shape=box];
     "Group execution = parallel?" [shape=diamond];
     "Spawn agent team:\none teammate per task\n(separate branches)" [shape=box style=filled fillcolor=lightyellow];
-    "Execute tasks sequentially\n(same as before)" [shape=box];
+    "Execute tasks with pipeline\n(see Pipeline Execution)" [shape=box];
     "All teammates done?\nMerge branches" [shape=diamond];
     "All sequential tasks done?" [shape=diamond];
     "Dispatch parallel spec reviewers\n(one per task)" [shape=box];
@@ -63,11 +63,11 @@ digraph process {
     "Extract parallel groups" -> "Next group";
     "Next group" -> "Group execution = parallel?";
     "Group execution = parallel?" -> "Spawn agent team:\none teammate per task\n(separate branches)" [label="yes"];
-    "Group execution = parallel?" -> "Execute tasks sequentially\n(same as before)" [label="no"];
+    "Group execution = parallel?" -> "Execute tasks with pipeline\n(see Pipeline Execution)" [label="no"];
     "Spawn agent team:\none teammate per task\n(separate branches)" -> "All teammates done?\nMerge branches";
     "All teammates done?\nMerge branches" -> "Dispatch parallel spec reviewers\n(one per task)" [label="yes"];
     "Dispatch parallel spec reviewers\n(one per task)" -> "Dispatch group code quality reviewer";
-    "Execute tasks sequentially\n(same as before)" -> "All sequential tasks done?";
+    "Execute tasks with pipeline\n(see Pipeline Execution)" -> "All sequential tasks done?";
     "All sequential tasks done?" -> "Dispatch group code quality reviewer" [label="yes"];
     "Dispatch group code quality reviewer" -> "More groups?";
     "More groups?" -> "Next group" [label="yes"];
@@ -153,6 +153,39 @@ Agent tool: "Red team: skeptic review Task N"
 Agent tool: "Red team: chaos test Task N"
   prompt: [red-team-prompt.md chaos tester mode filled]
 ```
+
+### Pipeline Execution
+
+While Task N is in review, Task N+1 can begin implementation — **if their files don't conflict**.
+
+See `./pipeline-scheduling.md` for the full conflict detection algorithm and rules.
+
+**Quick rules:**
+1. Check file lists (Create + Modify + Test) for overlap between Task N and Task N+1
+2. Also check commonly-missed shared files (barrel exports, configs, test fixtures)
+3. If any overlap: Task N+1 waits until Task N's reviews and fixes complete
+4. If no overlap: dispatch Task N+1's implementer immediately when Task N enters review
+5. Maximum 3 tasks in-flight simultaneously (1 implementing + 2 in review stages)
+
+**Pipeline dispatch:**
+```
+# Task N enters review — check if Task N+1 can start
+if canPipeline(taskN, taskN_plus_1):
+  # Dispatch review for Task N AND implementer for Task N+1 in same message
+  Agent tool: "Review spec compliance for Task N" [...]
+  Agent tool: "Review code quality for Task N" [...]
+  Agent tool: "Red team: skeptic review Task N" [...]
+  Agent tool: "Red team: chaos test Task N" [...]
+  Agent tool: "Implement Task N+1" [...]  # PIPELINED
+else:
+  # Only dispatch review for Task N — wait for completion
+  Agent tool: "Review spec compliance for Task N" [...]
+  Agent tool: "Review code quality for Task N" [...]
+  Agent tool: "Red team: skeptic review Task N" [...]
+  Agent tool: "Red team: chaos test Task N" [...]
+```
+
+**If review feedback requires changes to files Task N+1 touches:** Task N+1 must STOP. This should be rare if file analysis is correct.
 
 ### Parallel Group Execution
 
@@ -244,6 +277,7 @@ git branch -d task-2-user-api task-3-product-api task-4-search-service
 - `./spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent
 - `./code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent
 - `./red-team-prompt.md` - Dispatch red team agents (skeptic reviewer + chaos tester)
+- `./pipeline-scheduling.md` - Reference doc for file-ownership conflict detection and pipeline rules
 
 ## Example Workflow
 
