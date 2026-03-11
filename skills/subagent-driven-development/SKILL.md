@@ -5,9 +5,9 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Subagent-Driven Development
 
-Execute plan by dispatching fresh subagent per task, with two-stage review after each: spec compliance review first, then code quality review. Independent tasks run concurrently as agent teammates.
+Execute plan by dispatching fresh subagent per task, with parallel review after each: spec compliance and code quality reviewers dispatched simultaneously. Independent tasks run concurrently as agent teammates.
 
-**Core principle:** Fresh subagent per task + two-stage review (spec then quality) + parallel execution of independent tasks = high quality, fast iteration
+**Core principle:** Fresh subagent per task + parallel review (spec and quality simultaneously) + parallel execution of independent tasks = high quality, fast iteration
 
 ## When to Use
 
@@ -32,7 +32,7 @@ digraph when_to_use {
 **vs. Executing Plans (parallel session):**
 - Same session (no context switch)
 - Fresh subagent per task (no context pollution)
-- Two-stage review after each task: spec compliance first, then code quality
+- Parallel review after each task: spec compliance and code quality simultaneously
 - Faster iteration (no human-in-loop between tasks)
 
 ## The Process
@@ -76,7 +76,7 @@ digraph process {
 }
 ```
 
-### Sequential Task Flow (unchanged)
+### Sequential Task Flow
 
 For tasks in sequential groups, the original per-task flow applies:
 
@@ -90,12 +90,18 @@ digraph sequential_task {
         "Implementer subagent asks questions?" [shape=diamond];
         "Answer questions, provide context" [shape=box];
         "Implementer subagent implements, tests, commits, self-reviews" [shape=box];
-        "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" [shape=box];
-        "Spec reviewer subagent confirms code matches spec?" [shape=diamond];
-        "Implementer subagent fixes spec gaps" [shape=box];
-        "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [shape=box];
-        "Code quality reviewer subagent approves?" [shape=diamond];
-        "Implementer subagent fixes quality issues" [shape=box];
+
+        subgraph cluster_parallel_review {
+            label="Parallel Review (all dispatched simultaneously)";
+            style=dashed;
+            "Dispatch spec reviewer (./spec-reviewer-prompt.md)" [shape=box];
+            "Dispatch code quality reviewer (./code-quality-reviewer-prompt.md)" [shape=box];
+        }
+
+        "Merge review feedback" [shape=box];
+        "Any reviewer found issues?" [shape=diamond];
+        "Implementer fixes issues" [shape=box];
+        "Re-run only flagging reviewers" [shape=box];
         "TaskUpdate: mark task completed" [shape=box];
     }
 
@@ -103,17 +109,21 @@ digraph sequential_task {
     "Implementer subagent asks questions?" -> "Answer questions, provide context" [label="yes"];
     "Answer questions, provide context" -> "Dispatch implementer subagent (./implementer-prompt.md)";
     "Implementer subagent asks questions?" -> "Implementer subagent implements, tests, commits, self-reviews" [label="no"];
-    "Implementer subagent implements, tests, commits, self-reviews" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)";
-    "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" -> "Spec reviewer subagent confirms code matches spec?";
-    "Spec reviewer subagent confirms code matches spec?" -> "Implementer subagent fixes spec gaps" [label="no"];
-    "Implementer subagent fixes spec gaps" -> "Dispatch spec reviewer subagent (./spec-reviewer-prompt.md)" [label="re-review"];
-    "Spec reviewer subagent confirms code matches spec?" -> "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [label="yes"];
-    "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" -> "Code quality reviewer subagent approves?";
-    "Code quality reviewer subagent approves?" -> "Implementer subagent fixes quality issues" [label="no"];
-    "Implementer subagent fixes quality issues" -> "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [label="re-review"];
-    "Code quality reviewer subagent approves?" -> "TaskUpdate: mark task completed" [label="yes"];
+    "Implementer subagent implements, tests, commits, self-reviews" -> "Dispatch spec reviewer (./spec-reviewer-prompt.md)";
+    "Implementer subagent implements, tests, commits, self-reviews" -> "Dispatch code quality reviewer (./code-quality-reviewer-prompt.md)";
+    "Dispatch spec reviewer (./spec-reviewer-prompt.md)" -> "Merge review feedback";
+    "Dispatch code quality reviewer (./code-quality-reviewer-prompt.md)" -> "Merge review feedback";
+    "Merge review feedback" -> "Any reviewer found issues?";
+    "Any reviewer found issues?" -> "Implementer fixes issues" [label="yes"];
+    "Implementer fixes issues" -> "Re-run only flagging reviewers";
+    "Re-run only flagging reviewers" -> "Merge review feedback";
+    "Any reviewer found issues?" -> "TaskUpdate: mark task completed" [label="no"];
 }
 ```
+
+**Parallel review:** Spec reviewer and code quality reviewer are dispatched **simultaneously** in a single message. Their feedback is merged, and the implementer addresses all issues at once. Only reviewers that flagged issues re-run after fixes. This cuts review time roughly in half for passing tasks.
+
+**Rationale:** The previous sequential order (spec first, then quality) was motivated by "can't quality-review code that doesn't meet spec." In practice, both reviewers read code independently — running them in parallel and merging feedback is safe.
 
 ### Parallel Group Execution
 
@@ -308,7 +318,7 @@ Done!
 
 **Quality gates:**
 - Self-review catches issues before handoff
-- Two-stage review: spec compliance, then code quality
+- Parallel review: spec compliance and code quality simultaneously
 - Review loops ensure fixes actually work
 - Spec compliance prevents over/under-building
 - Code quality ensures implementation is well-built
@@ -333,7 +343,7 @@ Done!
 - Accept "close enough" on spec compliance (spec reviewer found issues = not done)
 - Skip review loops (reviewer found issues = implementer fixes = review again)
 - Let implementer self-review replace actual review (both are needed)
-- **Start code quality review before spec compliance is ✅** (both sequential and parallel tasks require independent spec review to pass first)
+- **Ignore review feedback from any reviewer** (all parallel reviewers' feedback is merged and addressed together)
 - Move to next task while either review has open issues
 
 **If subagent asks questions:**
