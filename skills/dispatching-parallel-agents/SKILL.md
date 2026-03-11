@@ -181,6 +181,49 @@ After agents return:
 3. **Run full suite** - Verify all fixes work together
 4. **Spot check** - Agents can make systematic errors
 
+## Aggressive Batch Sizing
+
+When dispatching from a plan with `blockedBy` dependencies, maximize parallelism by analyzing file ownership — not just dependency chains.
+
+### Algorithm
+
+```
+unblocked = tasks where all blockedBy are completed
+groups = []
+remaining = list(unblocked)
+
+while remaining:
+  group = [remaining[0]]
+  group_files = set(remaining[0].files)
+
+  for task in remaining[1:]:
+    if no intersection between task.files and group_files:
+      group.append(task)
+      group_files = group_files union task.files
+
+  groups.append(group)
+  remaining = remaining minus group
+
+# Dispatch groups[0] immediately (all tasks in parallel)
+# When tasks complete, re-evaluate: newly unblocked tasks may join groups[1+]
+```
+
+### Shared File Checklist
+
+Before grouping, identify commonly-missed shared files that plan authors don't list in `filesTouched`:
+
+- Barrel exports: `index.ts`, `index.js`, `__init__.py`, `mod.rs`
+- Config files: `package.json`, `tsconfig.json`, `pyproject.toml`, `Cargo.toml`
+- Shared test fixtures: `conftest.py`, `test-utils.ts`, `setupTests.ts`
+- Shared types: `types.ts`, `types.d.ts`, `interfaces.ts`
+- Route registrations: `routes.ts`, `app.ts`, `main.ts`
+
+If any of these appear in multiple tasks' file lists, those tasks CANNOT be in the same parallel group.
+
+### When In Doubt
+
+Treat as conflicting. False sequentiality costs time; false parallelism causes merge conflicts.
+
 ## Real-World Impact
 
 From debugging session (2025-10-03):
