@@ -4,7 +4,7 @@ Use this template when dispatching a code quality reviewer subagent.
 
 **Purpose:** Verify implementation is well-built (clean, tested, maintainable)
 
-**Only dispatch after spec compliance review passes.**
+**Dispatch simultaneously with spec compliance reviewer and red team agents.**
 
 ```
 Agent tool (superpowers-extended-cc:code-reviewer):

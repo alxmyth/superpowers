@@ -242,7 +242,7 @@ Dispatch one spec reviewer per task, all in a **single message** for concurrency
 Additionally, dispatch one skeptic reviewer per task in the same message (using `./red-team-prompt.md` Mode: Skeptic Reviewer). And dispatch one chaos tester per task (using `./red-team-prompt.md` Mode: Chaos Tester). All reviewers for all tasks dispatch in a single message for maximum concurrency.
 
 ```
-# Parallel spec reviews — one per task, all concurrent
+# All reviewers for all tasks in ONE message — maximum concurrency
 Agent tool:
   description: "Review spec compliance for Task 2"
   prompt: [spec-reviewer-prompt.md with Task 2's spec and diff]
@@ -254,6 +254,30 @@ Agent tool:
 Agent tool:
   description: "Review spec compliance for Task 4"
   prompt: [spec-reviewer-prompt.md with Task 4's spec and diff]
+
+Agent tool:
+  description: "Red team: skeptic review Task 2"
+  prompt: [red-team-prompt.md skeptic mode with Task 2's requirement and diff]
+
+Agent tool:
+  description: "Red team: skeptic review Task 3"
+  prompt: [red-team-prompt.md skeptic mode with Task 3's requirement and diff]
+
+Agent tool:
+  description: "Red team: skeptic review Task 4"
+  prompt: [red-team-prompt.md skeptic mode with Task 4's requirement and diff]
+
+Agent tool:
+  description: "Red team: chaos test Task 2"
+  prompt: [red-team-prompt.md chaos tester mode with Task 2's files and summary]
+
+Agent tool:
+  description: "Red team: chaos test Task 3"
+  prompt: [red-team-prompt.md chaos tester mode with Task 3's files and summary]
+
+Agent tool:
+  description: "Red team: chaos test Task 4"
+  prompt: [red-team-prompt.md chaos tester mode with Task 4's files and summary]
 ```
 
 If any spec review fails, dispatch a fix subagent for that task, then re-run its spec review.
