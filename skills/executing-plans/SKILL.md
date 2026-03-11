@@ -83,6 +83,18 @@ For each task:
 3. Run verifications as specified
 4. Mark as completed
 5. **Sync `.tasks.json`:** Read the tasks file, update the task's `"status"` to `"completed"` (or `"in_progress"` in step 1), set `"lastUpdated"` to current ISO timestamp, write back. This keeps the persistence file in sync with native tasks for cross-session resume.
+6. **Parallel review (if reviewing):** When requesting code review between batches, dispatch spec reviewer and code quality reviewer simultaneously (not sequentially). Also dispatch red team agents (skeptic reviewer + chaos tester) in parallel. See `subagent-driven-development/red-team-prompt.md` for templates. Merge all feedback and address together.
+
+#### Pipeline Execution (within batches)
+
+When executing sequential tasks within a batch, use pipeline scheduling to check if the next task can start while the current task is in review:
+
+1. Compare file lists between current task (in review) and next task
+2. If no file overlap: start next task's implementation immediately
+3. If files overlap: wait for current task's reviews to complete
+4. Maximum 3 tasks in-flight simultaneously
+
+See `subagent-driven-development/pipeline-scheduling.md` for the full conflict detection algorithm.
 
 ### Step 3: Report
 When batch complete:
