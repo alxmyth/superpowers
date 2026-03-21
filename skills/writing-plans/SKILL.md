@@ -156,6 +156,20 @@ Tasks 2, 3, 4 each create their own files and tests, never touching files from o
 
 **When in doubt, make it sequential.** False parallelism (tasks that actually share files) causes merge conflicts and wasted work. Only group tasks as parallel when you are certain they have zero file overlap.
 
+## Plan Validation (REQUIRED)
+
+<HARD-GATE>
+STOP. You have just finished writing the plan and .tasks.json. Before proceeding to execution handoff, you MUST validate the plan.
+</HARD-GATE>
+
+**REQUIRED:** Invoke the `validate-plan` skill now. The skill lives at `~/.claude/skills/validate-plan/SKILL.md`.
+
+Pass the plan file path and .tasks.json path as context in your invocation.
+
+This dispatches a multi-disciplinary review panel that validates and auto-revises the plan. The skill returns control here when validation is complete.
+
+**Do NOT skip this step. Do NOT proceed to the Execution Handoff until validation completes.**
+
 ## Execution Handoff
 
 <HARD-GATE>
