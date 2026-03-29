@@ -124,7 +124,7 @@ Start a new session and ask for something that should trigger a skill (for examp
 - **requesting-code-review** - Pre-review checklist
 - **receiving-code-review** - Responding to feedback
 - **using-git-worktrees** - Parallel development branches
-- **finishing-a-development-branch** - Merge/PR decision workflow
+- **finishing-a-development-branch** - Verify, merge to base branch, clean up worktree
 - **subagent-driven-development** - Fast iteration with two-stage review (spec compliance, then code quality)
 
 **Meta**
