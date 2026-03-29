@@ -102,4 +102,6 @@ You: [Fix progress indicators]
 - Show code/tests that prove it works
 - Request clarification
 
+**When review returns:** Use **superpowers-extended-cc:receiving-code-review** to evaluate and implement feedback.
+
 See template at: requesting-code-review/code-reviewer.md
