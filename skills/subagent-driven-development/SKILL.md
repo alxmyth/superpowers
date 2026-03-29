@@ -414,7 +414,7 @@ Done!
 - Code quality ensures implementation is well-built
 
 **Cost:**
-- More subagent invocations (implementer + 2 reviewers per task)
+- More subagent invocations (implementer + 4 reviewers per task)
 - Controller does more prep work (extracting all tasks upfront)
 - Review loops add iterations
 - But catches issues early (cheaper than debugging later)
