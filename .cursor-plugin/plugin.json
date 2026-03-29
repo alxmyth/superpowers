@@ -2,18 +2,11 @@
   "name": "superpowers-extended-cc",
   "displayName": "Superpowers Extended CC",
   "description": "Claude Code-specific fork of Superpowers with native task management and CC-specific enhancements",
-  "version": "4.3.4",
+  "version": "4.3.5",
   "author": {
-    "name": "Jesse Vincent",
-    "email": "jesse@fsck.com"
+    "name": "pcvelz",
+    "email": "pcvelz@users.noreply.github.com"
   },
-  "contributors": [
-    {
-      "name": "pcvelz",
-      "url": "https://github.com/pcvelz",
-      "role": "Fork maintainer"
-    }
-  ],
   "homepage": "https://github.com/pcvelz/superpowers",
   "repository": "https://github.com/pcvelz/superpowers",
   "license": "MIT",

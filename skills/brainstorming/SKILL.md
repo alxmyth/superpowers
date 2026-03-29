@@ -28,7 +28,7 @@ You MUST create a task for each of these items and complete them in order:
 1. **Explore project context** — check files, docs, recent commits
 2. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
 3. **Propose 2-3 approaches** — with trade-offs and your recommendation
-4. **Present design + red team challenge** — present design sections, dispatch devil's advocate in parallel (see `subagent-driven-development/red-team-prompt.md`), get user approval incorporating any red team concerns
+4. **Present design + red team challenge** — present design sections, dispatch devil's advocate in parallel (see `skills/subagent-driven-development/red-team-prompt.md`), get user approval incorporating any red team concerns
 5. **Write design doc** — save to `docs/plans/YYYY-MM-DD-<topic>-design.md` and commit
 6. **Transition to implementation** — invoke writing-plans skill to create implementation plan
 
@@ -84,7 +84,7 @@ digraph brainstorming {
 
 **Red team challenge (automatic):**
 - After drafting the design but before asking for user approval, dispatch the red team agent in devil's advocate mode
-- Use the template at `subagent-driven-development/red-team-prompt.md` (Mode: Devil's Advocate)
+- Use the template at `skills/subagent-driven-development/red-team-prompt.md` (Mode: Devil's Advocate)
 - Dispatch in parallel — do NOT wait for it to complete before presenting the design to the user
 - When the red team returns, present its concerns alongside or after the design section
 - The user decides which concerns to address — red team concerns are advisory, not blocking
