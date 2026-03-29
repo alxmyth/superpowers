@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Run a subagent-driven-development test
 # Usage: ./run-test.sh <test-name> [--plugin-dir <path>]
 #
@@ -60,7 +60,7 @@ echo ""
 
 # Prepare the prompt
 PLAN_PATH="$OUTPUT_DIR/project/plan.md"
-PROMPT="Execute this plan using superpowers:subagent-driven-development. The plan is at: $PLAN_PATH"
+PROMPT="Execute this plan using superpowers-extended-cc:subagent-driven-development. The plan is at: $PLAN_PATH"
 
 # Run Claude with JSON output for token tracking
 LOG_FILE="$OUTPUT_DIR/claude-output.json"

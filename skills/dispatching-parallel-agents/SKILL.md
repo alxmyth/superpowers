@@ -7,6 +7,8 @@ description: Use when facing 2+ independent tasks that can be worked on without 
 
 ## Overview
 
+You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They should never inherit your session's context or history — you construct exactly what they need. This also preserves your own context for coordination work.
+
 When you have multiple unrelated failures (different test files, different subsystems, different bugs), investigating them sequentially wastes time. Each investigation is independent and can happen in parallel.
 
 **Core principle:** Dispatch one agent per independent problem domain. Let them work concurrently.
@@ -63,24 +65,13 @@ Each agent gets:
 
 ### 3. Dispatch in Parallel
 
-Dispatch all agents in a **single message** so they run concurrently:
-
+```typescript
+// In Claude Code / AI environment
+Task("Fix agent-tool-abort.test.ts failures")
+Task("Fix batch-completion-behavior.test.ts failures")
+Task("Fix tool-approval-race-conditions.test.ts failures")
+// All three run concurrently
 ```
-# All in ONE message — this is what makes them concurrent
-Agent tool:
-  description: "Fix agent-tool-abort.test.ts failures"
-  prompt: [focused prompt with context]
-
-Agent tool:
-  description: "Fix batch-completion-behavior.test.ts failures"
-  prompt: [focused prompt with context]
-
-Agent tool:
-  description: "Fix tool-approval-race-conditions.test.ts failures"
-  prompt: [focused prompt with context]
-```
-
-**Key:** All Agent calls must be in the same message. Separate messages = sequential execution.
 
 ### 4. Review and Integrate
 
@@ -181,49 +172,6 @@ After agents return:
 3. **Run full suite** - Verify all fixes work together
 4. **Spot check** - Agents can make systematic errors
 
-## Aggressive Batch Sizing
-
-When dispatching from a plan with `blockedBy` dependencies, maximize parallelism by analyzing file ownership — not just dependency chains.
-
-### Algorithm
-
-```
-unblocked = tasks where all blockedBy are completed
-groups = []
-remaining = list(unblocked)
-
-while remaining:
-  group = [remaining[0]]
-  group_files = set(remaining[0].files)
-
-  for task in remaining[1:]:
-    if no intersection between task.files and group_files:
-      group.append(task)
-      group_files = group_files union task.files
-
-  groups.append(group)
-  remaining = remaining minus group
-
-# Dispatch groups[0] immediately (all tasks in parallel)
-# When tasks complete, re-evaluate: newly unblocked tasks may join groups[1+]
-```
-
-### Shared File Checklist
-
-Before grouping, identify commonly-missed shared files that plan authors don't list in `filesTouched`:
-
-- Barrel exports: `index.ts`, `index.js`, `__init__.py`, `mod.rs`
-- Config files: `package.json`, `tsconfig.json`, `pyproject.toml`, `Cargo.toml`
-- Shared test fixtures: `conftest.py`, `test-utils.ts`, `setupTests.ts`
-- Shared types: `types.ts`, `types.d.ts`, `interfaces.ts`
-- Route registrations: `routes.ts`, `app.ts`, `main.ts`
-
-If any of these appear in multiple tasks' file lists, those tasks CANNOT be in the same parallel group.
-
-### When In Doubt
-
-Treat as conflicting. False sequentiality costs time; false parallelism causes merge conflicts.
-
 ## Real-World Impact
 
 From debugging session (2025-10-03):
@@ -237,18 +185,32 @@ From debugging session (2025-10-03):
 
 ## Native Task Integration
 
-Track parallel agent work with native task tools.
+Track parallel agent work with structured native tasks.
 
 ### Before Dispatch
 
-Create a task per agent:
+Create a task per agent with structured description:
 
-```
+```yaml
 TaskCreate:
-  subject: "Fix agent-tool-abort.test.ts"
-  description: "Investigate timing failures..."
-  activeForm: "Fixing abort tests"
+  subject: "[Agent assignment — concrete deliverable]"
+  description: |
+    **Goal:** [What this agent should produce]
+
+    **Files:**
+    - [Expected files to touch]
+
+    **Acceptance Criteria:**
+    - [ ] [Concrete criterion]
+
+    **Verify:** [Command to verify agent's work]
+
+    ```json:metadata
+    {"files": ["expected/files"], "verifyCommand": "test command", "acceptanceCriteria": ["criterion"]}
+    ```
 ```
+
+See `skills/shared/task-format-reference.md` for the full task format reference.
 
 ### Monitor Progress
 
@@ -268,10 +230,4 @@ When marking tasks completed via `TaskUpdate`, also sync `.tasks.json`:
 ### Notes
 
 - No blockedBy (parallel = independent)
-- Each agent updates its own task status
 - Controller is responsible for `.tasks.json` sync (not the dispatched agents)
-
-## Integration
-
-**Related skills:**
-- **superpowers-extended-cc:subagent-driven-development** — Uses the same parallel dispatch pattern for plan execution (implementation context vs debugging context)

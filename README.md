@@ -19,6 +19,8 @@ This fork integrates Claude Code-native features into the Superpowers workflow.
 | Feature | Claude Code Version | Description |
 |---------|---------------------|-------------|
 | Native Task Management | v2.1.16+ | Dependency tracking, real-time progress visibility |
+| Structured Task Metadata | v2.1.16+ | Goal/Files/AC/Verify structure with embedded `json:metadata` |
+| Pre-commit Task Gate | v2.1.16+ | Plugin hook blocks `git commit` when tasks are incomplete |
 
 ## Visual Comparison
 
@@ -84,9 +86,6 @@ Check that commands appear:
 # /superpowers-extended-cc:executing-plans - Execute plan in batches
 ```
 
-Start a new session and ask for something that should trigger a skill (for example, "help me plan this feature"). The agent should automatically invoke the relevant superpowers skill.
-
-
 ## The Basic Workflow
 
 1. **brainstorming** - Activates before writing code. Refines rough ideas through questions, explores alternatives, presents design in sections for validation. Saves design document.
@@ -101,9 +100,41 @@ Start a new session and ask for something that should trigger a skill (for examp
 
 6. **requesting-code-review** - Activates between tasks. Reviews against plan, reports issues by severity. Critical issues block progress.
 
-7. **finishing-a-development-branch** - Activates when tasks complete. Verifies tests, merges to base branch, cleans up worktree.
+7. **finishing-a-development-branch** - Activates when tasks complete. Verifies tests, presents options (merge/PR/keep/discard), cleans up worktree.
 
 **The agent checks for relevant skills before any task.** Mandatory workflows, not suggestions.
+
+## How Native Tasks Work
+
+When `writing-plans` creates tasks, each task carries structured metadata that survives across sessions and subagent dispatch:
+
+```yaml
+TaskCreate:
+  subject: "Task 1: Add price validation to optimizer"
+  description: |
+    **Goal:** Validate input prices before optimization runs.
+
+    **Files:**
+    - Modify: `src/optimizer.py:45-60`
+    - Create: `tests/test_price_validation.py`
+
+    **Acceptance Criteria:**
+    - [ ] Negative prices raise ValueError
+    - [ ] Empty price list raises ValueError
+    - [ ] Valid prices pass through unchanged
+
+    **Verify:** `pytest tests/test_price_validation.py -v`
+
+    ```json:metadata
+    {"files": ["src/optimizer.py", "tests/test_price_validation.py"],
+     "verifyCommand": "pytest tests/test_price_validation.py -v",
+     "acceptanceCriteria": ["Negative prices raise ValueError",
+       "Empty price list raises ValueError",
+       "Valid prices pass through unchanged"]}
+    ```
+```
+
+The `json:metadata` block is embedded in the description because `TaskGet` returns the description but not the `metadata` parameter. This ensures metadata is always available — for `executing-plans` verification, `subagent-driven-development` dispatch, and `.tasks.json` cross-session resume.
 
 ## What's Inside
 
@@ -124,7 +155,7 @@ Start a new session and ask for something that should trigger a skill (for examp
 - **requesting-code-review** - Pre-review checklist
 - **receiving-code-review** - Responding to feedback
 - **using-git-worktrees** - Parallel development branches
-- **finishing-a-development-branch** - Verify, merge to base branch, clean up worktree
+- **finishing-a-development-branch** - Merge/PR decision workflow
 - **subagent-driven-development** - Fast iteration with two-stage review (spec compliance, then code quality)
 
 **Meta**
@@ -151,7 +182,9 @@ Contributions for Claude Code-specific enhancements are welcome!
 
 See `skills/writing-skills/SKILL.md` for the complete guide.
 
-## Recommended: Disable Auto Plan Mode
+## Recommended Configuration
+
+### Disable Auto Plan Mode
 
 Claude Code may automatically enter Plan mode during planning tasks, which conflicts with the structured skill workflows in this plugin. To prevent this, add `EnterPlanMode` to your permission deny list.
 
@@ -166,6 +199,32 @@ Claude Code may automatically enter Plan mode during planning tasks, which confl
 ```
 
 This blocks the model from calling `EnterPlanMode`, ensuring the brainstorming and writing-plans skills operate correctly in normal mode. See [upstream discussion](https://github.com/anthropics/claude-code/issues/23384) for context.
+
+### Block Commits With Incomplete Tasks
+
+When using native tasks, the agent should not commit until all tasks are finished. This plugin includes an example hook that blocks `git commit` when tasks are still open.
+
+Add this to your `.claude/settings.local.json`:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/plugins/marketplaces/superpowers-extended-cc-marketplace/hooks/examples/pre-commit-check-tasks.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+The hook ships with the plugin at `hooks/examples/pre-commit-check-tasks.sh`. The marketplace path is stable across versions. It parses the session transcript for `TaskCreate`/`TaskUpdate` calls and blocks `git commit` when any tasks are not completed, cancelled, or deleted. Non-commit Bash commands pass through unaffected.
 
 ## Updating
 

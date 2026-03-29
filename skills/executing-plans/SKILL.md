@@ -11,11 +11,11 @@ description: Use when you have a written implementation plan to execute in a sep
 
 ## Overview
 
-Load plan, review critically, execute tasks in batches, report for review between batches.
-
-**Core principle:** Batch execution with checkpoints for architect review.
+Load plan, review critically, execute all tasks, report when complete.
 
 **Announce at start:** "I'm using the executing-plans skill to implement this plan."
+
+**Note:** Tell your human partner that Superpowers works much better with access to subagents. The quality of its work will be significantly higher if run on a platform with subagent support (such as Claude Code or Codex). If subagents are available, use superpowers-extended-cc:subagent-driven-development instead of this skill.
 
 ## The Process
 
@@ -23,13 +23,14 @@ Load plan, review critically, execute tasks in batches, report for review betwee
 
 1. Call `TaskList` to check for existing native tasks
 2. **CRITICAL - Locate tasks file:** Try `<plan-path>.tasks.json`, if not found glob for matching `.tasks.json`
-3. If tasks file exists AND native tasks empty: recreate from JSON using TaskCreate, restore blockedBy with TaskUpdate
-4. If native tasks exist: verify they match plan, resume from first `pending`/`in_progress`/`failed`
+3. If tasks file exists AND native tasks empty: recreate from JSON using TaskCreate:
+   - Include full `description` from .tasks.json (not just subject)
+   - Include `metadata` field if present (files, verifyCommand, acceptanceCriteria)
+   - Restore `blockedBy` with TaskUpdate
+4. If native tasks exist: verify they match plan, resume from first `pending`/`in_progress`
 5. If neither: proceed to Step 1b to bootstrap from plan
 
-**Resuming parallel groups:** If `.tasks.json` shows tasks as `"in_progress"` in a parallel group, check for committed task branches (`git branch --list 'task-*'`). Merge completed branches, then re-dispatch only tasks without a committed branch.
-
-Update `.tasks.json` after every task status change (including `"in_progress"` and `"failed"`, not just `"completed"`).
+Update `.tasks.json` after every task status change.
 
 ### Step 0.5: Verify Workspace (Worktree Check)
 
@@ -40,7 +41,7 @@ Before calling `using-git-worktrees`, check if a worktree already exists:
 3. If on main/master with no worktree: **REQUIRED SUB-SKILL:** Use `superpowers-extended-cc:using-git-worktrees` to create one
 
 ### Step 1: Load and Review Plan
-1. Read plan file fully
+1. Read plan file
 2. Review critically - identify any questions or concerns about the plan
 3. If concerns: Raise them with your human partner before starting
 4. If no concerns: Proceed to task setup
@@ -52,73 +53,38 @@ If TaskList returned no tasks or tasks don't match plan:
 1. Parse the plan document for `## Task N:` or `### Task N:` headers
 2. For each task found, use TaskCreate with:
    - subject: The task title from the plan
-   - description: Full task content including steps, files, acceptance criteria
+   - description: Full structured content (Goal, Files, Acceptance Criteria, Verify, Steps) with `json:metadata` code fence at the end containing files, verifyCommand, acceptanceCriteria
    - activeForm: Present tense action (e.g., "Implementing X")
 3. **CRITICAL - Dependencies:** For EACH task that has blockedBy in the plan or .tasks.json:
    - Call `TaskUpdate` with `taskId` and `addBlockedBy: [list-of-blocking-task-ids]`
    - Do NOT skip this step - dependencies are essential for correct execution order
 4. Call `TaskList` and verify blockedBy relationships show correctly (e.g., "blocked by #1, #2")
 
-### Step 2: Execute Batch
-**Default: First 3 tasks (or next parallel group, whichever is larger)**
 
-#### Check for Parallel Groups
-
-Before executing, read the `.tasks.json` `parallelGroups` array. If the current batch contains tasks from a group with `"execution": "parallel"`:
-
-1. **Verify file independence:** Check that `filesTouched` arrays have zero overlap across tasks in the group — including commonly missed shared files (barrel exports, configs, test fixtures). If any overlap: warn user and fall back to sequential. Maximum 5 tasks per parallel group.
-2. **Sync `.tasks.json`:** Set all group tasks to `"in_progress"` before spawning (crash safety).
-3. **Spawn concurrent agents on separate branches:** Dispatch one Agent per task in a **single message** (concurrent execution). Use the prompt structure from `superpowers-extended-cc:subagent-driven-development/teammate-prompt.md` — each teammate creates its own git branch, implements, tests, and commits to that branch.
-4. **Merge branches:** After all agents complete, merge each task branch into the feature branch sequentially. If any merge conflicts, stop and report to user.
-5. **Run verification:** Execute the project's full test suite to confirm all concurrent changes work together.
-6. **Sync `.tasks.json`** for all completed tasks.
-
-If the group is `"execution": "sequential"` or no parallel groups exist, use the standard sequential flow below.
-
-#### Sequential Execution (default)
+### Step 2: Execute Tasks
 
 For each task:
 1. Mark as in_progress
 2. Follow each step exactly (plan has bite-sized steps)
-3. Run verifications as specified
-4. Mark as completed
-5. **Sync `.tasks.json`:** Read the tasks file, update the task's `"status"` to `"completed"` (or `"in_progress"` in step 1), set `"lastUpdated"` to current ISO timestamp, write back. This keeps the persistence file in sync with native tasks for cross-session resume.
-6. **Parallel review (if reviewing):** When requesting code review between batches, dispatch spec reviewer and code quality reviewer simultaneously (not sequentially). Also dispatch red team agents (skeptic reviewer + chaos tester) in parallel. See `subagent-driven-development/red-team-prompt.md` for templates. Merge all feedback and address together.
+3. **Use metadata for verification:** Parse the `json:metadata` code fence from the task description. Run `verifyCommand` and check each `acceptanceCriteria` before marking complete.
+4. **User verification gate:** If `requiresUserVerification` is `true` in the task's `json:metadata`:
+   - You MUST call `AskUserQuestion` using the `userVerificationPrompt` from the metadata (or the verification block in the task description)
+   - If the user selects the negative/rework option: go back to step 2, fix the issues, re-verify, then ask again
+   - **This is NOT optional.** Skipping user verification when the metadata requires it is a plan violation.
+5. Mark as completed
+6. **Sync `.tasks.json`:** Read the tasks file, update the task's `"status"` to `"completed"` (or `"in_progress"` in step 1), set `"lastUpdated"` to current ISO timestamp, write back. This keeps the persistence file in sync with native tasks for cross-session resume.
 
-#### Pipeline Execution (within batches)
-
-When executing sequential tasks within a batch, use pipeline scheduling to check if the next task can start while the current task is in review:
-
-1. Compare file lists between current task (in review) and next task
-2. If no file overlap: start next task's implementation immediately
-3. If files overlap: wait for current task's reviews to complete
-4. Maximum 3 tasks in-flight simultaneously
-
-See `subagent-driven-development/pipeline-scheduling.md` for the full conflict detection algorithm.
-
-### Step 3: Report
-When batch complete:
-- Show what was implemented
-- Show verification output
-- Say: "Ready for feedback."
-
-### Step 4: Continue
-Based on feedback:
-- Apply changes if needed
-- Execute next batch
-- Repeat until complete
-
-### Step 5: Complete Development
+### Step 3: Complete Development
 
 After all tasks complete and verified:
 - Announce: "I'm using the finishing-a-development-branch skill to complete this work."
 - **REQUIRED SUB-SKILL:** Use superpowers-extended-cc:finishing-a-development-branch
-- Follow that skill to verify tests, merge to base branch, clean up worktree
+- Follow that skill to verify tests, present options, execute choice
 
 ## When to Stop and Ask for Help
 
 **STOP executing immediately when:**
-- Hit a blocker mid-batch (missing dependency, test fails, instruction unclear)
+- Hit a blocker (missing dependency, test fails, instruction unclear)
 - Plan has critical gaps preventing starting
 - You don't understand an instruction
 - Verification fails repeatedly
@@ -137,8 +103,8 @@ After all tasks complete and verified:
 - Review plan critically first
 - Follow plan steps exactly
 - Don't skip verifications
+- Never skip user verification when task metadata requires it — call AskUserQuestion
 - Reference skills when plan says to
-- Between batches: just report and wait
 - Stop when blocked, don't guess
 - Never start implementation on main/master branch without explicit user consent
 

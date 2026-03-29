@@ -19,7 +19,23 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 
 **Context:** This should be run in a dedicated worktree (created by brainstorming skill).
 
-**Save plans to:** `docs/plans/YYYY-MM-DD-<feature-name>.md`
+**Save plans to:** `docs/superpowers/plans/YYYY-MM-DD-<feature-name>.md`
+- (User preferences for plan location override this default)
+
+## Scope Check
+
+If the spec covers multiple independent subsystems, it should have been broken into sub-project specs during brainstorming. If it wasn't, suggest breaking this into separate plans — one per subsystem. Each plan should produce working, testable software on its own.
+
+## File Structure
+
+Before defining tasks, map out which files will be created or modified and what each one is responsible for. This is where decomposition decisions get locked in.
+
+- Design units with clear boundaries and well-defined interfaces. Each file should have one clear responsibility.
+- You reason best about code you can hold in context at once, and your edits are more reliable when files are focused. Prefer smaller, focused files over large ones that do too much.
+- Files that change together should live together. Split by responsibility, not by technical layer.
+- In existing codebases, follow established patterns. If the codebase uses large files, don't unilaterally restructure - but if a file you're modifying has grown unwieldy, including a split in the plan is reasonable.
+
+This structure informs the task decomposition. Each task should produce self-contained changes that make sense independently.
 
 ## REQUIRED FIRST STEP: Initialize Task Tracking
 
@@ -35,14 +51,18 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 TaskList
 ```
 
-## Bite-Sized Task Granularity
+## Task Granularity
 
-**Each step is one action (2-5 minutes):**
-- "Write the failing test" - step
-- "Run it to make sure it fails" - step
-- "Implement the minimal code to make the test pass" - step
-- "Run the tests and make sure they pass" - step
-- "Commit" - step
+**Each task is a coherent unit of work that produces a testable, committable outcome.**
+
+See `skills/shared/task-format-reference.md` for the full granularity guide.
+
+Key principle: TDD cycles happen WITHIN tasks, not as separate tasks. A task is "Implement X with tests" — the red-green-refactor steps are execution detail inside the task, not task boundaries.
+
+**Scope test:**
+1. Can it be verified independently? (if no → too small)
+2. Does it touch more than one concern? (if yes → too big)
+3. Would it get its own commit? (if no → merge with adjacent task)
 
 ## Plan Document Header
 
@@ -51,7 +71,7 @@ TaskList
 ```markdown
 # [Feature Name] Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers-extended-cc:executing-plans to implement this plan task-by-task.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers-extended-cc:subagent-driven-development (recommended) or superpowers-extended-cc:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** [One sentence describing what this builds]
 
@@ -59,24 +79,39 @@ TaskList
 
 **Tech Stack:** [Key technologies/libraries]
 
-**Parallel Groups:** [Summary of which task groups can run concurrently — e.g., "Tasks 2-4 (parallel), Task 5 (sequential)"]
+**User Verification:** [YES — what the user wants verified, by whom, and when] or [NO — no user verification required]
 
 ---
 ```
+
+**The User Verification field is mandatory.** Re-read the original prompt/spec and answer: does it require any form of user feedback, user confirmation, human sign-off, or human-in-the-loop validation? This is about intent, not exact keywords. Examples:
+- "verify with the user after each module" → YES — user confirms each module's output before proceeding
+- "terugkoppeling van users hoeveel foutmeldingen die ziet" → YES — user reports observed error count
+- "add a caching layer" → NO
+
+If YES: every task that requires user verification MUST include the standard verification block (see User Verification Enforcement section below). If you write YES here but create no verification tasks, the HARD-GATE before Execution Handoff will catch the gap.
 
 ## Task Structure
 
 ````markdown
 ### Task N: [Component Name]
 
-**Parallel Group: N** — [group label, e.g., "Foundation" or "Independent Features"]
+**Goal:** [One sentence — what this task produces]
 
 **Files:**
 - Create: `exact/path/to/file.py`
 - Modify: `exact/path/to/existing.py:123-145`
 - Test: `tests/exact/path/to/test.py`
 
-**Step 1: Write the failing test**
+**Acceptance Criteria:**
+- [ ] [Concrete, testable criterion]
+- [ ] [Another criterion]
+
+**Verify:** `exact test command` → expected output
+
+**Steps:**
+
+- [ ] **Step 1: Write the failing test**
 
 ```python
 def test_specific_behavior():
@@ -84,24 +119,24 @@ def test_specific_behavior():
     assert result == expected
 ```
 
-**Step 2: Run test to verify it fails**
+- [ ] **Step 2: Run test to verify it fails**
 
 Run: `pytest tests/path/test.py::test_name -v`
 Expected: FAIL with "function not defined"
 
-**Step 3: Write minimal implementation**
+- [ ] **Step 3: Write minimal implementation**
 
 ```python
 def function(input):
     return expected
 ```
 
-**Step 4: Run test to verify it passes**
+- [ ] **Step 4: Run test to verify it passes**
 
 Run: `pytest tests/path/test.py::test_name -v`
 Expected: PASS
 
-**Step 5: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add tests/path/test.py src/path/file.py
@@ -109,60 +144,119 @@ git commit -m "feat: add specific feature"
 ```
 ````
 
+## No Placeholders
+
+Every step must contain the actual content an engineer needs. These are **plan failures** — never write them:
+- "TBD", "TODO", "implement later", "fill in details"
+- "Add appropriate error handling" / "add validation" / "handle edge cases"
+- "Write tests for the above" (without actual test code)
+- "Similar to Task N" (repeat the code — the engineer may be reading tasks out of order)
+- Steps that describe what to do without showing how (code blocks required for code steps)
+- References to types, functions, or methods not defined in any task
+
 ## Remember
 - Exact file paths always
-- Complete code in plan (not "add validation")
+- Complete code in every step — if a step changes code, show the code
 - Exact commands with expected output
-- Reference relevant skills by `superpowers-extended-cc:<skill-name>` identifier
 - DRY, YAGNI, TDD, frequent commits
 
-## Identifying Parallel Execution Groups
+## Self-Review
 
-After writing all tasks, analyze file dependencies to identify which tasks can run concurrently.
+After writing the complete plan, look at the spec with fresh eyes and check the plan against it. This is a checklist you run yourself — not a subagent dispatch.
 
-**Rules for parallel grouping:**
-1. Tasks that touch **no overlapping files** (create, modify, or test) can run in parallel
-2. Tasks that share files MUST be in different groups with sequential ordering
-3. Foundation tasks (shared types, config, schemas) are typically Group 1 (sequential)
-4. Feature tasks building on the foundation are often parallelizable
-5. Integration/glue tasks that wire features together must come after their dependencies
-6. Maximum **5 tasks** per parallel group (API rate limits and coordination overhead)
+**1. Spec coverage:** Skim each section/requirement in the spec. Can you point to a task that implements it? List any gaps.
 
-**Commonly missed shared files — check every parallel group for these:**
-- Barrel exports: `index.ts`, `__init__.py`, `mod.rs`
-- Package manifests: `package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`
-- Config files: `settings.py`, `.env.example`, `config.json`
-- Test infrastructure: `conftest.py`, `jest.config.ts`, `setupTests.ts`
-- Type definitions: shared `types.ts`, `interfaces.py`, `models.py`
-- Documentation: `README.md`, `CHANGELOG.md`
+**2. Placeholder scan:** Search your plan for red flags — any of the patterns from the "No Placeholders" section above. Fix them.
 
-If ANY task in a parallel group might touch one of these files, either move it to a sequential group or explicitly list the file in `filesTouched` so the overlap check catches it.
+**3. Type consistency:** Do the types, method signatures, and property names you used in later tasks match what you defined in earlier tasks? A function called `clearLayers()` in Task 3 but `clearFullLayers()` in Task 7 is a bug.
 
-**How to assign groups:**
-- **Group 1:** Foundation — tasks that create shared infrastructure. Run sequentially first.
-- **Group 2+:** Independent features — tasks with no file overlap. Run in parallel within the group.
-- **Final Group:** Integration — tasks that wire everything together. Run sequentially last.
+**4. Verification requirement scan:** Answer this question with YES or NO:
 
-**Example grouping:**
+> Does the original prompt/spec require **any form of** user verification, user feedback, user confirmation, user approval, human sign-off, or human-in-the-loop validation of the work's outcome?
+
+This is about **intent**, not exact keywords. All of these qualify:
+- "plan must include user feedback on error count" → YES
+- "terugkoppeling van users hoeveel foutmeldingen die ziet" → YES
+- "verify with the user that latency improved" → YES
+- "add a caching layer" → NO (no human verification requested)
+
+**If YES:** Call `TaskList`. At least one task MUST have `requiresUserVerification: true` in its `json:metadata`. If no such task exists → you have a gap. **Do not proceed.** Create a dedicated verification task now using the standard format below.
+
+If you find issues, fix them inline. No need to re-review — just fix and move on. If you find a spec requirement with no task, add the task.
+
+## User Verification Enforcement
+
+When the original prompt/spec requires any form of user verification (detected in Self-Review step 4 above), the plan MUST include dedicated verification task(s). This is not optional — it is the mechanism that ensures user feedback requirements survive from prompt through to execution.
+
+### What makes a verification task
+
+A verification task has three mandatory elements:
+
+1. `"requiresUserVerification": true` in the task's `json:metadata`
+2. `"userVerificationPrompt"` set to the specific question for the user
+3. The **standard verification block** in the task description (copy verbatim):
+
+~~~markdown
+**User Verification Required:**
+Before marking this task complete, you MUST call AskUserQuestion:
+```yaml
+AskUserQuestion:
+  question: "[specific question derived from the prompt's verification requirement]"
+  header: "Verification"
+  options:
+    - label: "[positive outcome]"
+      description: "[what this means]"
+    - label: "[negative outcome / needs rework]"
+      description: "[what happens next]"
 ```
-Group 1 (sequential):  Task 1 — Database schema + shared types
-Group 2 (parallel):    Task 2 — User API endpoint
-                       Task 3 — Product API endpoint
-                       Task 4 — Search service
-Group 3 (sequential):  Task 5 — Integration tests + wiring
-```
+~~~
 
-Tasks 2, 3, 4 each create their own files and tests, never touching files from other tasks in the group. The execution skills will spawn concurrent agent teammates for parallel groups.
+**If the user selects the negative option:** The task is NOT complete. Rework, then re-verify with AskUserQuestion again.
 
-**When in doubt, make it sequential.** False parallelism (tasks that actually share files) causes merge conflicts and wasted work. Only group tasks as parallel when you are certain they have zero file overlap.
+### Where verification tasks go
 
-## Plan Validation
+- **Dedicated task** when the verification is a standalone checkpoint (e.g., "ask the user how many errors they see")
+- **Added to an existing task** when the verification is part of that task's scope (e.g., "implement fix AND verify with user that it works")
 
-Before proceeding to execution handoff, validate the plan if the `validate-plan` skill is available.
+Either way, the three mandatory elements above must be present.
 
-**Check:** Invoke the `validate-plan` skill. If it loads successfully, follow it — pass the plan file path and .tasks.json path as context. The skill dispatches a multi-disciplinary review panel that validates and auto-revises the plan.
+### Example
 
-**If `validate-plan` is not available:** Proceed directly to the Execution Handoff. The plan was written following this skill's structure, which provides sufficient quality gates.
+Prompt: "Fix hook errors. Plan must include user feedback on error count."
+
+The plan must include a task like:
+
+> **Task N: Verify error reduction with user**
+>
+> **Goal:** Get user confirmation that hook errors have decreased from baseline.
+>
+> **User Verification Required:**
+> Before marking this task complete, you MUST call AskUserQuestion:
+> ```yaml
+> AskUserQuestion:
+>   question: "How many hook errors do you see per Bash command? (baseline: 38)"
+>   header: "Verification"
+>   options:
+>     - label: "Reduced"
+>       description: "Fewer than 38 errors — improvement confirmed"
+>     - label: "Same or worse"
+>       description: "No improvement — needs rework"
+> ```
+>
+> ```json:metadata
+> {"files": [], "verifyCommand": "", "acceptanceCriteria": ["user confirms error reduction"], "requiresUserVerification": true, "userVerificationPrompt": "How many hook errors do you see per Bash command? (baseline: 38)"}
+> ```
+
+<HARD-GATE>
+STOP. Before proceeding to Execution Handoff, you MUST confirm:
+
+1. Did you complete Self-Review step 4 (verification requirement scan)?
+2. If the answer was YES (prompt requires user verification): does `TaskList` show at least one task with `requiresUserVerification: true` in its description?
+
+If the prompt requires user verification and NO verification task exists: **GO BACK.** Create the verification task now. You CANNOT proceed to Execution Handoff without it.
+
+This gate exists because user verification requirements routinely get lost between plan writing and execution. The only way to guarantee they survive is to encode them as native tasks with enforceable metadata.
+</HARD-GATE>
 
 ## Execution Handoff
 
@@ -174,7 +268,7 @@ Your ONLY permitted next action is calling `AskUserQuestion` with this EXACT str
 
 ```yaml
 AskUserQuestion:
-  question: "Plan complete and saved to docs/plans/<filename>.md. How would you like to execute it?"
+  question: "Plan complete and saved to docs/superpowers/plans/<filename>.md. How would you like to execute it?"
   header: "Execution"
   options:
     - label: "Subagent-Driven (this session)"
@@ -185,14 +279,18 @@ AskUserQuestion:
 
 **If you are about to call ExitPlanMode, STOP — call AskUserQuestion instead.**
 
+<HARD-GATE>
+STOP. The user has chosen an execution method. You MUST invoke the corresponding skill using the Skill tool NOW. Do NOT implement tasks yourself — do NOT read files, make edits, or update task statuses. Your ONLY permitted action is invoking the skill below.
+
 **If Subagent-Driven chosen:**
-- **REQUIRED SUB-SKILL:** Use superpowers-extended-cc:subagent-driven-development
-- Stay in this session
-- Fresh subagent per task + code review
+Invoke the Skill tool: `superpowers-extended-cc:subagent-driven-development`
+- The skill handles everything: subagent dispatch, review, task tracking
+- You stay in this session as the coordinator
+- Do NOT start working on tasks directly
 
 **If Parallel Session chosen:**
-- Guide them to open new session in worktree
-- **REQUIRED SUB-SKILL:** New session uses superpowers-extended-cc:executing-plans
+Guide the user to open a new session in the worktree, then invoke: `superpowers-extended-cc:executing-plans`
+</HARD-GATE>
 
 ---
 
@@ -202,15 +300,41 @@ Use Claude Code's native task tools (v2.1.16+) to create structured tasks alongs
 
 ### Creating Native Tasks
 
-For each task in the plan, create a corresponding native task:
+For each task in the plan, create a corresponding native task. Embed metadata as a `json:metadata` code fence at the end of the description — this is the only way to ensure metadata survives TaskGet (the `metadata` parameter on TaskCreate is accepted but not returned by TaskGet).
 
-```
+```yaml
 TaskCreate:
   subject: "Task N: [Component Name]"
   description: |
-    [Copy the full task content from the plan you just wrote — files, steps, acceptance criteria, everything]
+    **Goal:** [From task's Goal line]
+
+    **Files:**
+    [From task's Files section]
+
+    **Acceptance Criteria:**
+    [From task's Acceptance Criteria]
+
+    **Verify:** [From task's Verify line]
+
+    **Steps:**
+    [Key actions from task's Steps — abbreviated]
+
+    ```json:metadata
+    {"files": ["path/to/file1.py"], "verifyCommand": "pytest tests/path/ -v", "acceptanceCriteria": ["criterion 1", "criterion 2"], "requiresUserVerification": false}
+    ```
   activeForm: "Implementing [Component Name]"
 ```
+
+**`requiresUserVerification` is a required field in every task's metadata** — always present, explicitly `true` or `false`. When `true`, also include `userVerificationPrompt` and the standard verification block in the description (see User Verification Enforcement section). This forces an active decision per task rather than allowing verification to be silently omitted.
+
+### Why Embedded Metadata
+
+The `metadata` parameter on TaskCreate is accepted but **not returned by TaskGet**. Embedding it as a `json:metadata` code fence in the description ensures:
+- TaskGet returns the full metadata (it's part of the description)
+- Cross-session resume can parse it from .tasks.json
+- Subagent dispatch can extract it for implementer prompts
+
+See `skills/shared/task-format-reference.md` for the full metadata schema.
 
 ### Setting Dependencies
 
@@ -236,46 +360,37 @@ TaskUpdate:
   status: completed    # when done
 ```
 
-### Notes
-
-- Native tasks provide CLI-visible progress tracking
-- Plan document remains the permanent record
-
 ---
 
 ## Task Persistence
 
 At plan completion, write the task persistence file **in the same directory as the plan document**.
 
-If the plan is saved to `docs/plans/2026-01-15-feature.md`, the tasks file MUST be saved to `docs/plans/2026-01-15-feature.md.tasks.json`.
+If the plan is saved to `docs/superpowers/plans/2026-01-15-feature.md`, the tasks file MUST be saved to `docs/superpowers/plans/2026-01-15-feature.md.tasks.json`.
 
 ```json
 {
-  "planPath": "docs/plans/2026-01-15-feature.md",
-  "parallelGroups": [
-    {"group": 1, "label": "Foundation", "execution": "sequential"},
-    {"group": 2, "label": "Independent Features", "execution": "parallel"},
-    {"group": 3, "label": "Integration", "execution": "sequential"}
-  ],
+  "planPath": "docs/superpowers/plans/2026-01-15-feature.md",
   "tasks": [
-    {"id": 1, "subject": "Task 1: Database schema", "status": "pending", "parallelGroup": 1, "filesTouched": ["src/schema.py", "tests/test_schema.py"]},
-    {"id": 2, "subject": "Task 2: User API", "status": "pending", "blockedBy": [1], "parallelGroup": 2, "filesTouched": ["src/users.py", "tests/test_users.py"]},
-    {"id": 3, "subject": "Task 3: Product API", "status": "pending", "blockedBy": [1], "parallelGroup": 2, "filesTouched": ["src/products.py", "tests/test_products.py"]},
-    {"id": 4, "subject": "Task 4: Integration", "status": "pending", "blockedBy": [2, 3], "parallelGroup": 3, "filesTouched": ["src/app.py", "tests/test_integration.py"]}
+    {
+      "id": 0,
+      "subject": "Task 0: ...",
+      "status": "pending",
+      "description": "**Goal:** ...\n\n**Files:**\n...\n\n```json:metadata\n{\"files\": [\"path/to/file.py\"], \"verifyCommand\": \"pytest tests/ -v\", \"acceptanceCriteria\": [\"criterion 1\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: ...",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** ...\n\n```json:metadata\n{\"files\": [], \"verifyCommand\": \"\", \"acceptanceCriteria\": []}\n```"
+    }
   ],
   "lastUpdated": "<timestamp>"
 }
 ```
 
-**Key fields:**
-- `parallelGroups` — declares execution groups with labels and whether they run in parallel or sequentially
-- `parallelGroup` — per-task field linking it to a group number
-- `filesTouched` — all files a task creates, modifies, or tests — including shared infrastructure files like barrel exports, configs, and test fixtures (used by execution skills to verify no overlap within parallel groups)
-- `blockedBy` — optional array of task IDs that must complete before this task starts (drives execution ordering and native task dependencies)
-- `execution: "parallel"` — signals execution skills to spawn concurrent agent teammates for that group
-- `status` — valid values: `"pending"`, `"in_progress"`, `"completed"`, `"failed"`
-
-Both the plan `.md` and `.tasks.json` must be co-located in `docs/plans/`.
+Both the plan `.md` and `.tasks.json` must be co-located in `docs/superpowers/plans/`.
 
 ### Resuming Work
 

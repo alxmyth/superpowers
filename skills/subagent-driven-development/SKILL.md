@@ -5,9 +5,11 @@ description: Use when executing implementation plans with independent tasks in t
 
 # Subagent-Driven Development
 
-Execute plan by dispatching fresh subagent per task, with parallel review after each: spec compliance and code quality reviewers dispatched simultaneously. Independent tasks run concurrently as agent teammates.
+Execute plan by dispatching fresh subagent per task, with two-stage review after each: spec compliance review first, then code quality review.
 
-**Core principle:** Fresh subagent per task + parallel review (spec and quality simultaneously) + parallel execution of independent tasks = high quality, fast iteration
+**Why subagents:** You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They should never inherit your session's context or history — you construct exactly what they need. This also preserves your own context for coordination work.
+
+**Core principle:** Fresh subagent per task + two-stage review (spec then quality) = high quality, fast iteration
 
 ## When to Use
 
@@ -32,356 +34,189 @@ digraph when_to_use {
 **vs. Executing Plans (parallel session):**
 - Same session (no context switch)
 - Fresh subagent per task (no context pollution)
-- Parallel review after each task: spec compliance and code quality simultaneously
+- Two-stage review after each task: spec compliance first, then code quality
 - Faster iteration (no human-in-loop between tasks)
 
 ## The Process
-
-### Execution Model: Groups → Tasks
-
-The plan's `.tasks.json` defines **parallel groups**. The controller processes groups in order:
 
 ```dot
 digraph process {
     rankdir=TB;
 
-    "Read plan + .tasks.json" [shape=box];
-    "Extract parallel groups\n(if absent, treat all as\none sequential group)" [shape=box];
-    "Next group" [shape=box];
-    "Group execution = parallel?" [shape=diamond];
-    "Spawn agent team:\none teammate per task\n(separate branches)" [shape=box style=filled fillcolor=lightyellow];
-    "Execute tasks with pipeline\n(see Pipeline Execution)" [shape=box];
-    "All teammates done?\nMerge branches" [shape=diamond];
-    "All sequential tasks done?" [shape=diamond];
-    "Dispatch parallel spec reviewers\n(one per task)" [shape=box];
-    "Dispatch group code quality reviewer" [shape=box];
-    "More groups?" [shape=diamond];
-    "Dispatch final code reviewer\nfor entire implementation" [shape=box];
-    "finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
-
-    "Read plan + .tasks.json" -> "Extract parallel groups";
-    "Extract parallel groups" -> "Next group";
-    "Next group" -> "Group execution = parallel?";
-    "Group execution = parallel?" -> "Spawn agent team:\none teammate per task\n(separate branches)" [label="yes"];
-    "Group execution = parallel?" -> "Execute tasks with pipeline\n(see Pipeline Execution)" [label="no"];
-    "Spawn agent team:\none teammate per task\n(separate branches)" -> "All teammates done?\nMerge branches";
-    "All teammates done?\nMerge branches" -> "Dispatch parallel spec reviewers\n(one per task)" [label="yes"];
-    "Dispatch parallel spec reviewers\n(one per task)" -> "Dispatch group code quality reviewer";
-    "Execute tasks with pipeline\n(see Pipeline Execution)" -> "All sequential tasks done?";
-    "All sequential tasks done?" -> "Dispatch group code quality reviewer" [label="yes"];
-    "Dispatch group code quality reviewer" -> "More groups?";
-    "More groups?" -> "Next group" [label="yes"];
-    "More groups?" -> "Dispatch final code reviewer\nfor entire implementation" [label="no"];
-    "Dispatch final code reviewer\nfor entire implementation" -> "finishing-a-development-branch";
-}
-```
-
-### Sequential Task Flow
-
-For tasks in sequential groups, the original per-task flow applies:
-
-```dot
-digraph sequential_task {
-    rankdir=TB;
-
     subgraph cluster_per_task {
-        label="Per Sequential Task";
-        "Dispatch implementer subagent (./implementer-prompt.md)" [shape=box];
+        label="Per Task";
+        "Dispatch implementer subagent (skills/subagent-driven-development/implementer-prompt.md)" [shape=box];
         "Implementer subagent asks questions?" [shape=diamond];
         "Answer questions, provide context" [shape=box];
         "Implementer subagent implements, tests, commits, self-reviews" [shape=box];
-
-        subgraph cluster_parallel_review {
-            label="Parallel Review + Red Team (all dispatched simultaneously)";
-            style=dashed;
-            "Dispatch spec reviewer (./spec-reviewer-prompt.md)" [shape=box];
-            "Dispatch code quality reviewer (./code-quality-reviewer-prompt.md)" [shape=box];
-            "Dispatch skeptic reviewer (./red-team-prompt.md)" [shape=box style=filled fillcolor=lightyellow];
-            "Dispatch chaos tester (./red-team-prompt.md)" [shape=box style=filled fillcolor=lightyellow];
-        }
-
-        "Merge review feedback" [shape=box];
-        "Any reviewer found issues?" [shape=diamond];
-        "Implementer fixes issues" [shape=box];
-        "Re-run only flagging reviewers" [shape=box];
+        "Dispatch spec reviewer subagent (skills/subagent-driven-development/spec-reviewer-prompt.md)" [shape=box];
+        "Spec reviewer subagent confirms code matches spec?" [shape=diamond];
+        "Implementer subagent fixes spec gaps" [shape=box];
+        "Dispatch code quality reviewer subagent (skills/subagent-driven-development/code-quality-reviewer-prompt.md)" [shape=box];
+        "Code quality reviewer subagent approves?" [shape=diamond];
+        "Implementer subagent fixes quality issues" [shape=box];
+        "Task requires user verification? (check json:metadata)" [shape=diamond];
+        "AskUserQuestion: user verification prompt" [shape=box];
         "TaskUpdate: mark task completed" [shape=box];
     }
 
-    "Dispatch implementer subagent (./implementer-prompt.md)" -> "Implementer subagent asks questions?";
+    "Read plan, extract tasks, TaskCreate for each with full text" [shape=box];
+    "More tasks remain?" [shape=diamond];
+    "Dispatch final code reviewer subagent for entire implementation" [shape=box];
+    "Use superpowers-extended-cc:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
+
+    "Read plan, extract tasks, TaskCreate for each with full text" -> "Dispatch implementer subagent (skills/subagent-driven-development/implementer-prompt.md)";
+    "Dispatch implementer subagent (skills/subagent-driven-development/implementer-prompt.md)" -> "Implementer subagent asks questions?";
     "Implementer subagent asks questions?" -> "Answer questions, provide context" [label="yes"];
-    "Answer questions, provide context" -> "Dispatch implementer subagent (./implementer-prompt.md)";
+    "Answer questions, provide context" -> "Dispatch implementer subagent (skills/subagent-driven-development/implementer-prompt.md)";
     "Implementer subagent asks questions?" -> "Implementer subagent implements, tests, commits, self-reviews" [label="no"];
-    "Implementer subagent implements, tests, commits, self-reviews" -> "Dispatch spec reviewer (./spec-reviewer-prompt.md)";
-    "Implementer subagent implements, tests, commits, self-reviews" -> "Dispatch code quality reviewer (./code-quality-reviewer-prompt.md)";
-    "Implementer subagent implements, tests, commits, self-reviews" -> "Dispatch skeptic reviewer (./red-team-prompt.md)";
-    "Implementer subagent implements, tests, commits, self-reviews" -> "Dispatch chaos tester (./red-team-prompt.md)";
-    "Dispatch spec reviewer (./spec-reviewer-prompt.md)" -> "Merge review feedback";
-    "Dispatch code quality reviewer (./code-quality-reviewer-prompt.md)" -> "Merge review feedback";
-    "Dispatch skeptic reviewer (./red-team-prompt.md)" -> "Merge review feedback";
-    "Dispatch chaos tester (./red-team-prompt.md)" -> "Merge review feedback";
-    "Merge review feedback" -> "Any reviewer found issues?";
-    "Any reviewer found issues?" -> "Implementer fixes issues" [label="yes"];
-    "Implementer fixes issues" -> "Re-run only flagging reviewers";
-    "Re-run only flagging reviewers" -> "Merge review feedback";
-    "Any reviewer found issues?" -> "TaskUpdate: mark task completed" [label="no"];
+    "Implementer subagent implements, tests, commits, self-reviews" -> "Dispatch spec reviewer subagent (skills/subagent-driven-development/spec-reviewer-prompt.md)";
+    "Dispatch spec reviewer subagent (skills/subagent-driven-development/spec-reviewer-prompt.md)" -> "Spec reviewer subagent confirms code matches spec?";
+    "Spec reviewer subagent confirms code matches spec?" -> "Implementer subagent fixes spec gaps" [label="no"];
+    "Implementer subagent fixes spec gaps" -> "Dispatch spec reviewer subagent (skills/subagent-driven-development/spec-reviewer-prompt.md)" [label="re-review"];
+    "Spec reviewer subagent confirms code matches spec?" -> "Dispatch code quality reviewer subagent (skills/subagent-driven-development/code-quality-reviewer-prompt.md)" [label="yes"];
+    "Dispatch code quality reviewer subagent (skills/subagent-driven-development/code-quality-reviewer-prompt.md)" -> "Code quality reviewer subagent approves?";
+    "Code quality reviewer subagent approves?" -> "Implementer subagent fixes quality issues" [label="no"];
+    "Implementer subagent fixes quality issues" -> "Dispatch code quality reviewer subagent (skills/subagent-driven-development/code-quality-reviewer-prompt.md)" [label="re-review"];
+    "Code quality reviewer subagent approves?" -> "Task requires user verification? (check json:metadata)" [label="yes"];
+        "Task requires user verification? (check json:metadata)" -> "AskUserQuestion: user verification prompt" [label="yes"];
+        "Task requires user verification? (check json:metadata)" -> "TaskUpdate: mark task completed" [label="no"];
+        "AskUserQuestion: user verification prompt" -> "TaskUpdate: mark task completed" [label="approved"];
+        "AskUserQuestion: user verification prompt" -> "Implementer subagent fixes quality issues" [label="changes needed"];
+    "TaskUpdate: mark task completed" -> "More tasks remain?";
+    "More tasks remain?" -> "Dispatch implementer subagent (skills/subagent-driven-development/implementer-prompt.md)" [label="yes"];
+    "More tasks remain?" -> "Dispatch final code reviewer subagent for entire implementation" [label="no"];
+    "Dispatch final code reviewer subagent for entire implementation" -> "Use superpowers-extended-cc:finishing-a-development-branch";
 }
 ```
 
-**Parallel review:** Spec reviewer and code quality reviewer are dispatched **simultaneously** in a single message. Their feedback is merged, and the implementer addresses all issues at once. Only reviewers that flagged issues re-run after fixes. This cuts review time roughly in half for passing tasks.
+## Dispatching with Metadata
 
-**Rationale:** The previous sequential order (spec first, then quality) was motivated by "can't quality-review code that doesn't meet spec." In practice, both reviewers read code independently — running them in parallel and merging feedback is safe.
+When dispatching an implementer subagent:
+1. Read the task's description via TaskGet — metadata is embedded as a `json:metadata` code fence at the end
+2. Parse the metadata JSON and map fields (files, acceptanceCriteria, verifyCommand) to the implementer prompt sections
+3. The implementer should receive ALL structured data — don't make them parse it from prose
 
-**Red team agents:** Alongside spec and code quality reviewers, two adversarial agents are dispatched in parallel:
+## User Verification Gate
 
-- **Skeptic Reviewer** — questions whether the change actually solves the stated problem and whether tests prove what they claim. Uses `./red-team-prompt.md` (Mode: Skeptic Reviewer).
-- **Chaos Tester** — writes adversarial tests targeting boundary conditions, type coercion, state corruption, contract violations, and resource exhaustion. Uses `./red-team-prompt.md` (Mode: Chaos Tester).
+After both reviews pass, check the task's `json:metadata` for `"requiresUserVerification": true`.
 
-All four reviewers dispatch in a **single message** for maximum concurrency. Their feedback is merged together. Critical red team concerns must be addressed; minor concerns are optional.
+**If set:** The controller (you) MUST call `AskUserQuestion` using the `userVerificationPrompt` from the metadata before marking the task complete. This is a human-in-the-loop gate — no subagent can satisfy it.
 
-**Red team dispatch template:**
-```
-# All in ONE message — 4 parallel reviewers
-Agent tool: "Review spec compliance for Task N"
-  prompt: [spec-reviewer-prompt.md filled]
+**If the user selects the negative option:** Dispatch the implementer to fix the reported issues, then re-run both reviews, then ask the user again.
 
-Agent tool: "Review code quality for Task N"
-  prompt: [code-quality-reviewer-prompt.md filled]
+**This is the controller's responsibility, not the implementer's or reviewer's.** Subagents cannot call AskUserQuestion — only the controller can. The `requiresUserVerification` flag exists precisely to guarantee human sign-off on critical tasks.
 
-Agent tool: "Red team: skeptic review Task N"
-  prompt: [red-team-prompt.md skeptic mode filled]
+## Model Selection
 
-Agent tool: "Red team: chaos test Task N"
-  prompt: [red-team-prompt.md chaos tester mode filled]
-```
+Use the least powerful model that can handle each role to conserve cost and increase speed.
 
-### Pipeline Execution
+**Mechanical implementation tasks** (isolated functions, clear specs, 1-2 files): use a fast, cheap model. Most implementation tasks are mechanical when the plan is well-specified.
 
-While Task N is in review, Task N+1 can begin implementation — **if their files don't conflict**.
+**Integration and judgment tasks** (multi-file coordination, pattern matching, debugging): use a standard model.
 
-See `./pipeline-scheduling.md` for the full conflict detection algorithm and rules.
+**Architecture, design, and review tasks**: use the most capable available model.
 
-**Quick rules:**
-1. Check file lists (Create + Modify + Test) for overlap between Task N and Task N+1
-2. Also check commonly-missed shared files (barrel exports, configs, test fixtures)
-3. If any overlap: Task N+1 waits until Task N's reviews and fixes complete
-4. If no overlap: dispatch Task N+1's implementer immediately when Task N enters review
-5. Maximum 3 tasks in-flight simultaneously (1 implementing + 2 in review stages)
+**Task complexity signals:**
+- Touches 1-2 files with a complete spec → cheap model
+- Touches multiple files with integration concerns → standard model
+- Requires design judgment or broad codebase understanding → most capable model
 
-**Pipeline dispatch:**
-```
-# Task N enters review — check if Task N+1 can start
-if canPipeline(taskN, taskN_plus_1):
-  # Dispatch review for Task N AND implementer for Task N+1 in same message
-  Agent tool: "Review spec compliance for Task N" [...]
-  Agent tool: "Review code quality for Task N" [...]
-  Agent tool: "Red team: skeptic review Task N" [...]
-  Agent tool: "Red team: chaos test Task N" [...]
-  Agent tool: "Implement Task N+1" [...]  # PIPELINED
-else:
-  # Only dispatch review for Task N — wait for completion
-  Agent tool: "Review spec compliance for Task N" [...]
-  Agent tool: "Review code quality for Task N" [...]
-  Agent tool: "Red team: skeptic review Task N" [...]
-  Agent tool: "Red team: chaos test Task N" [...]
-```
+## Handling Implementer Status
 
-**If review feedback requires changes to files Task N+1 touches:** Task N+1 must STOP. This should be rare if file analysis is correct.
+Implementer subagents report one of four statuses. Handle each appropriately:
 
-### Parallel Group Execution
+**DONE:** Proceed to spec compliance review.
 
-For groups marked `"execution": "parallel"`, spawn an **agent team**:
+**DONE_WITH_CONCERNS:** The implementer completed the work but flagged doubts. Read the concerns before proceeding. If the concerns are about correctness or scope, address them before review. If they're observations (e.g., "this file is getting large"), note them and proceed to review.
 
-**Maximum group size: 5 teammates.** Beyond this, coordination overhead and API rate limits outweigh parallelism gains. If a parallel group has more than 5 tasks, split it into sub-groups of 3-5.
+**NEEDS_CONTEXT:** The implementer needs information that wasn't provided. Provide the missing context and re-dispatch.
 
-#### Step 1: Verify file independence
+**BLOCKED:** The implementer cannot complete the task. Assess the blocker:
+1. If it's a context problem, provide more context and re-dispatch with the same model
+2. If the task requires more reasoning, re-dispatch with a more capable model
+3. If the task is too large, break it into smaller pieces
+4. If the plan itself is wrong, escalate to the human
 
-Before spawning, check that `filesTouched` arrays across tasks in the group have zero overlap. Also check for common shared files that plan authors miss: barrel exports (`index.ts`, `__init__.py`), config files (`package.json`, `pyproject.toml`), shared test fixtures (`conftest.py`). If any overlap is detected, **fall back to sequential execution** and warn the user.
-
-#### Step 2: Record group start
-
-Sync `.tasks.json`: set all tasks in the group to `"in_progress"` with current timestamp. This ensures that if the session crashes, a resumed session can see these tasks were started (not still `"pending"`).
-
-#### Step 3: Spawn teammates on separate branches
-
-Dispatch one Agent per task, all in a **single message** (this makes them concurrent). Each teammate uses `./teammate-prompt.md` — creates its own git branch (`task-N-<name>`), implements, tests, commits to that branch, and self-reviews.
-
-```
-# All in ONE message for concurrency — each teammate creates its own branch
-Agent tool:
-  description: "Implement Task 2: User API"
-  prompt: [teammate-prompt.md filled with Task 2]
-
-Agent tool:
-  description: "Implement Task 3: Product API"
-  prompt: [teammate-prompt.md filled with Task 3]
-
-Agent tool:
-  description: "Implement Task 4: Search service"
-  prompt: [teammate-prompt.md filled with Task 4]
-```
-
-#### Step 4: Merge teammate branches
-
-After all teammates complete, the controller merges each task branch into the feature branch:
-
-```bash
-git checkout <feature-branch>
-git merge task-2-user-api --no-ff -m "Merge Task 2: User API"
-git merge task-3-product-api --no-ff -m "Merge Task 3: Product API"
-git merge task-4-search-service --no-ff -m "Merge Task 4: Search service"
-```
-
-If a merge conflicts, **stop and report to the user** — do not force-resolve. Conflicts mean the `filesTouched` declarations were incomplete.
-
-If a teammate failed (returned an error or incomplete work), skip its branch merge and mark its task as `"failed"` in `.tasks.json`. The remaining tasks can still proceed.
-
-#### Step 5: Spec compliance review (independent, parallel)
-
-Dispatch one spec reviewer per task, all in a **single message** for concurrency. Each uses `./spec-reviewer-prompt.md` scoped to that task's commits:
-
-Additionally, dispatch one skeptic reviewer per task in the same message (using `./red-team-prompt.md` Mode: Skeptic Reviewer). And dispatch one chaos tester per task (using `./red-team-prompt.md` Mode: Chaos Tester). All reviewers for all tasks dispatch in a single message for maximum concurrency.
-
-```
-# All reviewers for all tasks in ONE message — maximum concurrency
-Agent tool:
-  description: "Review spec compliance for Task 2"
-  prompt: [spec-reviewer-prompt.md with Task 2's spec and diff]
-
-Agent tool:
-  description: "Review spec compliance for Task 3"
-  prompt: [spec-reviewer-prompt.md with Task 3's spec and diff]
-
-Agent tool:
-  description: "Review spec compliance for Task 4"
-  prompt: [spec-reviewer-prompt.md with Task 4's spec and diff]
-
-Agent tool:
-  description: "Red team: skeptic review Task 2"
-  prompt: [red-team-prompt.md skeptic mode with Task 2's requirement and diff]
-
-Agent tool:
-  description: "Red team: skeptic review Task 3"
-  prompt: [red-team-prompt.md skeptic mode with Task 3's requirement and diff]
-
-Agent tool:
-  description: "Red team: skeptic review Task 4"
-  prompt: [red-team-prompt.md skeptic mode with Task 4's requirement and diff]
-
-Agent tool:
-  description: "Red team: chaos test Task 2"
-  prompt: [red-team-prompt.md chaos tester mode with Task 2's files and summary]
-
-Agent tool:
-  description: "Red team: chaos test Task 3"
-  prompt: [red-team-prompt.md chaos tester mode with Task 3's files and summary]
-
-Agent tool:
-  description: "Red team: chaos test Task 4"
-  prompt: [red-team-prompt.md chaos tester mode with Task 4's files and summary]
-```
-
-If any spec review fails, dispatch a fix subagent for that task, then re-run its spec review.
-
-#### Step 6: Group code quality review
-
-After all spec reviews pass, dispatch a single code quality reviewer for the group's combined diff (from the commit before the group started to HEAD).
-
-#### Step 7: Sync completion
-
-Mark all tasks as `"completed"` in `.tasks.json`. Clean up task branches:
-
-```bash
-git branch -d task-2-user-api task-3-product-api task-4-search-service
-```
+**Never** ignore an escalation or force the same model to retry without changes. If the implementer said it's stuck, something needs to change.
 
 ## Prompt Templates
 
-- `./implementer-prompt.md` - Dispatch implementer subagent (sequential tasks)
-- `./teammate-prompt.md` - Dispatch parallel teammate agent (parallel groups)
-- `./spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent
-- `./code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent
-- `./red-team-prompt.md` - Dispatch red team agents (skeptic reviewer + chaos tester)
-- `./pipeline-scheduling.md` - Reference doc for file-ownership conflict detection and pipeline rules
+- `skills/subagent-driven-development/implementer-prompt.md` - Dispatch implementer subagent
+- `skills/subagent-driven-development/spec-reviewer-prompt.md` - Dispatch spec compliance reviewer subagent
+- `skills/subagent-driven-development/code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent
 
 ## Example Workflow
 
 ```
 You: I'm using Subagent-Driven Development to execute this plan.
 
-[Read plan file + .tasks.json]
-[Extract parallel groups and all tasks]
+[Read plan file once: docs/superpowers/plans/feature-plan.md]
+[Extract all 5 tasks with full text and context]
 [TaskCreate for each task with full description]
 
-=== Group 1 (sequential): Foundation ===
+Task 1: Hook installation script
 
-Task 1: Database schema + shared types
-
+[Get Task 1 text and context (already extracted)]
 [Dispatch implementation subagent with full task text + context]
-Implementer: Implemented schema, 3/3 tests passing, committed.
+
+Implementer: "Before I begin - should the hook be installed at user or system level?"
+
+You: "User level (~/.config/superpowers/hooks/)"
+
+Implementer: "Got it. Implementing now..."
+[Later] Implementer:
+  - Implemented install-hook command
+  - Added tests, 5/5 passing
+  - Self-review: Found I missed --force flag, added it
+  - Committed
 
 [Dispatch spec compliance reviewer]
-Spec reviewer: ✅ Spec compliant
+Spec reviewer: ✅ Spec compliant - all requirements met, nothing extra
+
+[Get git SHAs, dispatch code quality reviewer]
+Code reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
+
+[Mark Task 1 complete]
+
+Task 2: Recovery modes
+
+[Get Task 2 text and context (already extracted)]
+[Dispatch implementation subagent with full task text + context]
+
+Implementer: [No questions, proceeds]
+Implementer:
+  - Added verify/repair modes
+  - 8/8 tests passing
+  - Self-review: All good
+  - Committed
+
+[Dispatch spec compliance reviewer]
+Spec reviewer: ❌ Issues:
+  - Missing: Progress reporting (spec says "report every 100 items")
+  - Extra: Added --json flag (not requested)
+
+[Implementer fixes issues]
+Implementer: Removed --json flag, added progress reporting
+
+[Spec reviewer reviews again]
+Spec reviewer: ✅ Spec compliant now
 
 [Dispatch code quality reviewer]
+Code reviewer: Strengths: Solid. Issues (Important): Magic number (100)
+
+[Implementer fixes]
+Implementer: Extracted PROGRESS_INTERVAL constant
+
+[Code reviewer reviews again]
 Code reviewer: ✅ Approved
 
-[Mark Task 1 complete, sync .tasks.json]
+[Mark Task 2 complete]
 
-=== Group 2 (parallel): Independent Features ===
+...
 
-[Verify file independence: Tasks 2, 3, 4 have zero file overlap ✅]
-[Check shared files: no barrel exports or configs affected ✅]
-[Sync .tasks.json: set Tasks 2, 3, 4 to "in_progress"]
-[Spawn 3 teammates concurrently in a single message]
-
-Teammate A (Task 2: User API):
-  - Branch: task-2-user-api
-  - Implemented user endpoints, 5/5 tests passing
-  - Files: src/users.py, tests/test_users.py (within ownership ✅)
-  - Self-review: Clean, follows patterns
-  - Committed to task-2-user-api branch
-
-Teammate B (Task 3: Product API):
-  - Branch: task-3-product-api
-  - Implemented product endpoints, 4/4 tests passing
-  - Files: src/products.py, tests/test_products.py (within ownership ✅)
-  - Self-review: Clean, follows patterns
-  - Committed to task-3-product-api branch
-
-Teammate C (Task 4: Search service):
-  - Branch: task-4-search-service
-  - Implemented search, 6/6 tests passing
-  - Files: src/search.py, tests/test_search.py (within ownership ✅)
-  - Self-review: Clean, follows patterns
-  - Committed to task-4-search-service branch
-
-[All 3 completed concurrently — wall time = slowest teammate, not sum]
-
-[Merge branches sequentially into feature branch]
-git merge task-2-user-api --no-ff ✅
-git merge task-3-product-api --no-ff ✅
-git merge task-4-search-service --no-ff ✅
-
-[Dispatch 3 parallel spec reviewers — one per task]
-Spec reviewer (Task 2): ✅ Spec compliant
-Spec reviewer (Task 3): ✅ Spec compliant
-Spec reviewer (Task 4): ✅ Spec compliant
-
-[Dispatch group code quality reviewer for combined diff]
-Group reviewer: Strengths: Clean separation. Issues: None. Approved.
-
-[Mark Tasks 2, 3, 4 complete, sync .tasks.json]
-[Clean up branches: git branch -d task-2-* task-3-* task-4-*]
-
-=== Group 3 (sequential): Integration ===
-
-Task 5: Integration tests + wiring
-
-[Dispatch implementation subagent]
-...standard sequential flow...
-
-[After all groups]
-[Dispatch final code-reviewer for entire implementation]
+[After all tasks]
+[Dispatch final code-reviewer]
 Final reviewer: All requirements met, ready to merge
 
 Done!
@@ -408,13 +243,13 @@ Done!
 
 **Quality gates:**
 - Self-review catches issues before handoff
-- Parallel review: spec compliance and code quality simultaneously
+- Two-stage review: spec compliance, then code quality
 - Review loops ensure fixes actually work
 - Spec compliance prevents over/under-building
 - Code quality ensures implementation is well-built
 
 **Cost:**
-- More subagent invocations (implementer + 4 reviewers per task)
+- More subagent invocations (implementer + 2 reviewers per task)
 - Controller does more prep work (extracting all tasks upfront)
 - Review loops add iterations
 - But catches issues early (cheaper than debugging later)
@@ -425,15 +260,16 @@ Done!
 - Start implementation on main/master branch without explicit user consent
 - Skip reviews (spec compliance OR code quality)
 - Proceed with unfixed issues
-- Parallelize tasks that share files (check `filesTouched` — any overlap = sequential)
-- Parallelize tasks without verifying file independence first
+- Dispatch multiple implementation subagents in parallel (conflicts)
 - Make subagent read plan file (provide full text instead)
 - Skip scene-setting context (subagent needs to understand where task fits)
 - Ignore subagent questions (answer before letting them proceed)
 - Accept "close enough" on spec compliance (spec reviewer found issues = not done)
 - Skip review loops (reviewer found issues = implementer fixes = review again)
 - Let implementer self-review replace actual review (both are needed)
-- **Ignore review feedback from any reviewer** (all parallel reviewers' feedback is merged and addressed together)
+- **Start code quality review before spec compliance is ✅** (wrong order)
+- **Skip user verification when task metadata has `requiresUserVerification: true`** (the user explicitly requested this gate)
+- Let a subagent handle user verification (only the controller can call AskUserQuestion)
 - Move to next task while either review has open issues
 
 **If subagent asks questions:**
@@ -453,21 +289,14 @@ Done!
 
 ## Task Persistence Sync
 
-Update `.tasks.json` at every status transition, not just on completion:
+After marking each task completed via `TaskUpdate`, update the `.tasks.json` file to stay in sync:
 
 1. Read `<plan-path>.tasks.json`
-2. Set the task's `"status"` to the new status (`"in_progress"`, `"completed"`, or `"failed"`)
+2. Set the task's `"status"` to `"completed"`
 3. Set `"lastUpdated"` to current ISO timestamp
 4. Write the file back
 
-**Valid status values:** `"pending"`, `"in_progress"`, `"completed"`, `"failed"`
-
-**For parallel groups:** Set all group tasks to `"in_progress"` BEFORE spawning teammates. This ensures that if the session crashes mid-group, a resumed session sees `"in_progress"` (not `"pending"`) and can check git history for committed branches before re-dispatching.
-
-**Cross-session resume with parallel groups:** If `.tasks.json` shows tasks as `"in_progress"`, the resumed session should:
-1. Check for task branches (`git branch --list 'task-*'`) to identify completed work
-2. Merge any completed task branches that haven't been merged yet
-3. Re-dispatch only tasks with no committed branch
+This ensures cross-session resume works correctly. Without this, a new session loading `.tasks.json` would see completed tasks as `"pending"`.
 
 ## Integration
 
