@@ -8,16 +8,16 @@ trap 'echo "{\"decision\": \"allow\"}"; exit 0' ERR
 INPUT=$(cat)
 
 TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty')
-[[ "$TOOL_NAME" != "TaskUpdate" ]] && echo '{"decision": "allow"}' && exit 0
+[[ "$TOOL_NAME" != "TaskUpdate" ]] && echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}' && exit 0
 
 STATUS=$(echo "$INPUT" | jq -r '.tool_input.status // empty')
-[[ "$STATUS" != "completed" ]] && echo '{"decision": "allow"}' && exit 0
+[[ "$STATUS" != "completed" ]] && echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}' && exit 0
 
 TASK_ID=$(echo "$INPUT" | jq -r '.tool_input.taskId // empty')
-[[ -z "$TASK_ID" ]] && echo '{"decision": "allow"}' && exit 0
+[[ -z "$TASK_ID" ]] && echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}' && exit 0
 
 TRANSCRIPT_PATH=$(echo "$INPUT" | jq -r '.transcript_path // empty')
-[[ -z "$TRANSCRIPT_PATH" || ! -f "$TRANSCRIPT_PATH" ]] && echo '{"decision": "allow"}' && exit 0
+[[ -z "$TRANSCRIPT_PATH" || ! -f "$TRANSCRIPT_PATH" ]] && echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}' && exit 0
 
 # Check if this task requires user verification by scanning transcript for its TaskCreate
 REQUIRES_VERIFICATION=$(python3 -c "
@@ -51,7 +51,7 @@ else:
     print('no')
 " 2>/dev/null || echo "no")
 
-[[ "$REQUIRES_VERIFICATION" != "yes" ]] && echo '{"decision": "allow"}' && exit 0
+[[ "$REQUIRES_VERIFICATION" != "yes" ]] && echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}' && exit 0
 
 # Task requires verification — check if AskUserQuestion was called after task was in_progress
 HAS_ASK=$(python3 -c "
@@ -76,9 +76,10 @@ print('yes' if found_ask else 'no')
 " 2>/dev/null || echo "yes")
 
 if [[ "$HAS_ASK" != "yes" ]]; then
-    echo "TASK COMPLETION BLOCKED: Task #$TASK_ID has requiresUserVerification=true but no AskUserQuestion was called. You MUST call AskUserQuestion with the verification prompt before marking this task complete." >&2
-    exit 2
+    REASON="Task #$TASK_ID has requiresUserVerification=true but no AskUserQuestion was called. You MUST call AskUserQuestion with the verification prompt before marking this task complete."
+    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}\n' "$REASON"
+    exit 0
 fi
 
-echo '{"decision": "allow"}'
+echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}'
 exit 0
