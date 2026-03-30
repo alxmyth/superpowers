@@ -235,4 +235,4 @@ When marking tasks completed via `TaskUpdate`, also sync `.tasks.json`:
 ## Integration
 
 **Related skills:**
-- **superpowers-extended-cc:subagent-driven-development** — Uses the same parallel dispatch pattern for plan execution (implementation context vs debugging context)
+- **superpowers2:subagent-driven-development** — Uses the same parallel dispatch pattern for plan execution (implementation context vs debugging context)

@@ -62,7 +62,7 @@ This fork integrates Claude Code-native features into the Superpowers workflow.
 /plugin marketplace add pcvelz/superpowers
 
 # Install plugin
-/plugin install superpowers-extended-cc@superpowers-extended-cc-marketplace
+/plugin install superpowers2@superpowers2-marketplace
 ```
 
 ### Option 2: Direct URL
@@ -81,9 +81,9 @@ Check that commands appear:
 
 ```
 # Should see:
-# /superpowers-extended-cc:brainstorming - Interactive design refinement
-# /superpowers-extended-cc:writing-plans - Create implementation plan
-# /superpowers-extended-cc:executing-plans - Execute plan in batches
+# /superpowers2:brainstorming - Interactive design refinement
+# /superpowers2:writing-plans - Create implementation plan
+# /superpowers2:executing-plans - Execute plan in batches
 ```
 
 ## The Basic Workflow
@@ -215,7 +215,7 @@ Add this to your `.claude/settings.local.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "bash ~/.claude/plugins/marketplaces/superpowers-extended-cc-marketplace/hooks/examples/pre-commit-check-tasks.sh"
+            "command": "bash ~/.claude/plugins/marketplaces/superpowers2-marketplace/hooks/examples/pre-commit-check-tasks.sh"
           }
         ]
       }
@@ -231,7 +231,7 @@ The hook ships with the plugin at `hooks/examples/pre-commit-check-tasks.sh`. Th
 Skills update automatically when you update the plugin:
 
 ```bash
-/plugin update superpowers-extended-cc@superpowers-extended-cc-marketplace
+/plugin update superpowers2@superpowers2-marketplace
 ```
 
 ## Upstream Compatibility

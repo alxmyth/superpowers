@@ -63,7 +63,7 @@ digraph process {
     "Read plan, extract tasks, TaskCreate for each with full text" [shape=box];
     "More tasks remain?" [shape=diamond];
     "Dispatch final code reviewer subagent for entire implementation" [shape=box];
-    "Use superpowers-extended-cc:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
+    "Use superpowers2:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
 
     "Read plan, extract tasks, TaskCreate for each with full text" -> "Dispatch implementer subagent (skills/subagent-driven-development/implementer-prompt.md)";
     "Dispatch implementer subagent (skills/subagent-driven-development/implementer-prompt.md)" -> "Implementer subagent asks questions?";
@@ -86,7 +86,7 @@ digraph process {
     "TaskUpdate: mark task completed" -> "More tasks remain?";
     "More tasks remain?" -> "Dispatch implementer subagent (skills/subagent-driven-development/implementer-prompt.md)" [label="yes"];
     "More tasks remain?" -> "Dispatch final code reviewer subagent for entire implementation" [label="no"];
-    "Dispatch final code reviewer subagent for entire implementation" -> "Use superpowers-extended-cc:finishing-a-development-branch";
+    "Dispatch final code reviewer subagent for entire implementation" -> "Use superpowers2:finishing-a-development-branch";
 }
 ```
 
@@ -301,13 +301,13 @@ This ensures cross-session resume works correctly. Without this, a new session l
 ## Integration
 
 **Required workflow skills:**
-- **superpowers-extended-cc:using-git-worktrees** - REQUIRED: Set up isolated workspace before starting
-- **superpowers-extended-cc:writing-plans** - Creates the plan this skill executes
-- **superpowers-extended-cc:requesting-code-review** - Code review template for reviewer subagents
-- **superpowers-extended-cc:finishing-a-development-branch** - Complete development after all tasks
+- **superpowers2:using-git-worktrees** - REQUIRED: Set up isolated workspace before starting
+- **superpowers2:writing-plans** - Creates the plan this skill executes
+- **superpowers2:requesting-code-review** - Code review template for reviewer subagents
+- **superpowers2:finishing-a-development-branch** - Complete development after all tasks
 
 **Subagents should use:**
-- **superpowers-extended-cc:test-driven-development** - Subagents follow TDD for each task
+- **superpowers2:test-driven-development** - Subagents follow TDD for each task
 
 **Alternative workflow:**
-- **superpowers-extended-cc:executing-plans** - Use for parallel session instead of same-session execution
+- **superpowers2:executing-plans** - Use for parallel session instead of same-session execution
