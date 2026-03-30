@@ -6,8 +6,8 @@
     "name": "pcvelz",
     "email": "pcvelz@users.noreply.github.com"
   },
-  "homepage": "https://github.com/pcvelz/superpowers",
-  "repository": "https://github.com/pcvelz/superpowers",
+  "homepage": "https://github.com/alxmyth/superpowers",
+  "repository": "https://github.com/alxmyth/superpowers",
   "license": "MIT",
   "keywords": ["skills", "tdd", "debugging", "collaboration", "best-practices", "workflows", "claude-code", "native-tasks"]
 }

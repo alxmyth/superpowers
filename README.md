@@ -55,20 +55,12 @@ This fork integrates Claude Code-native features into the Superpowers workflow.
 
 ## Installation
 
-### Option 1: Via Marketplace (recommended)
-
 ```bash
 # Register marketplace
-/plugin marketplace add pcvelz/superpowers
+/plugin marketplace add alxmyth/superpowers
 
 # Install plugin
 /plugin install superpowers2@superpowers2-marketplace
-```
-
-### Option 2: Direct URL
-
-```bash
-/plugin install --source url https://github.com/pcvelz/superpowers.git
 ```
 
 ### Verify Installation
@@ -244,5 +236,5 @@ MIT License - see LICENSE file for details
 
 ## Support
 
-- **Issues**: https://github.com/pcvelz/superpowers/issues
+- **Issues**: https://github.com/alxmyth/superpowers/issues
 - **Upstream**: https://github.com/obra/superpowers
