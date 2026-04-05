@@ -15,6 +15,14 @@ Verify tests, merge to base branch, clean up worktree.
 
 ## The Process
 
+### Step 0: Review Incomplete Tasks
+
+Before proceeding, call `TaskList` to check for incomplete tasks in this session.
+
+- If incomplete tasks exist: review each one. Complete or cancel tasks that are finished or no longer relevant.
+- If tasks legitimately remain in progress (e.g., this merge is part of a larger workflow): note them and proceed — but be aware the work may be incomplete.
+- Do not prompt the user about task status. Use your judgment based on context.
+
 ### Step 1: Verify Tests
 
 ```bash
