@@ -3,7 +3,7 @@
 # Only triggers on Bash tool calls containing "git commit".
 
 # No set -e: if anything fails unexpectedly, fall through to allow.
-trap 'echo "{\"decision\": \"allow\"}"; exit 0' ERR
+trap 'exit 0' ERR
 
 INPUT=$(cat)
 
