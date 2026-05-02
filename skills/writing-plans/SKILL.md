@@ -71,7 +71,7 @@ Key principle: TDD cycles happen WITHIN tasks, not as separate tasks. A task is 
 ```markdown
 # [Feature Name] Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers-extended-cc:subagent-driven-development (recommended) or superpowers-extended-cc:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers2:subagent-driven-development (recommended) or superpowers2:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** [One sentence describing what this builds]
 
@@ -79,8 +79,17 @@ Key principle: TDD cycles happen WITHIN tasks, not as separate tasks. A task is 
 
 **Tech Stack:** [Key technologies/libraries]
 
+**User Verification:** [YES — what the user wants verified, by whom, and when] or [NO — no user verification required]
+
 ---
 ```
+
+**The User Verification field is mandatory.** Re-read the original prompt/spec and answer: does it require any form of user feedback, user confirmation, human sign-off, or human-in-the-loop validation? This is about intent, not exact keywords. Examples:
+- "verify with the user after each module" → YES — user confirms each module's output before proceeding
+- "terugkoppeling van users hoeveel foutmeldingen die ziet" → YES — user reports observed error count
+- "add a caching layer" → NO
+
+If YES: every task that requires user verification MUST include the standard verification block (see User Verification Enforcement section below). If you write YES here but create no verification tasks, the HARD-GATE before Execution Handoff will catch the gap.
 
 ## Task Structure
 
@@ -161,7 +170,93 @@ After writing the complete plan, look at the spec with fresh eyes and check the 
 
 **3. Type consistency:** Do the types, method signatures, and property names you used in later tasks match what you defined in earlier tasks? A function called `clearLayers()` in Task 3 but `clearFullLayers()` in Task 7 is a bug.
 
+**4. Verification requirement scan:** Answer this question with YES or NO:
+
+> Does the original prompt/spec require **any form of** user verification, user feedback, user confirmation, user approval, human sign-off, or human-in-the-loop validation of the work's outcome?
+
+This is about **intent**, not exact keywords. All of these qualify:
+- "plan must include user feedback on error count" → YES
+- "terugkoppeling van users hoeveel foutmeldingen die ziet" → YES
+- "verify with the user that latency improved" → YES
+- "add a caching layer" → NO (no human verification requested)
+
+**If YES:** Call `TaskList`. At least one task MUST have `requiresUserVerification: true` in its `json:metadata`. If no such task exists → you have a gap. **Do not proceed.** Create a dedicated verification task now using the standard format below.
+
 If you find issues, fix them inline. No need to re-review — just fix and move on. If you find a spec requirement with no task, add the task.
+
+## User Verification Enforcement
+
+When the original prompt/spec requires any form of user verification (detected in Self-Review step 4 above), the plan MUST include dedicated verification task(s). This is not optional — it is the mechanism that ensures user feedback requirements survive from prompt through to execution.
+
+### What makes a verification task
+
+A verification task has three mandatory elements:
+
+1. `"requiresUserVerification": true` in the task's `json:metadata`
+2. `"userVerificationPrompt"` set to the specific question for the user
+3. The **standard verification block** in the task description (copy verbatim):
+
+~~~markdown
+**User Verification Required:**
+Before marking this task complete, you MUST call AskUserQuestion:
+```yaml
+AskUserQuestion:
+  question: "[specific question derived from the prompt's verification requirement]"
+  header: "Verification"
+  options:
+    - label: "[positive outcome]"
+      description: "[what this means]"
+    - label: "[negative outcome / needs rework]"
+      description: "[what happens next]"
+```
+~~~
+
+**If the user selects the negative option:** The task is NOT complete. Rework, then re-verify with AskUserQuestion again.
+
+### Where verification tasks go
+
+- **Dedicated task** when the verification is a standalone checkpoint (e.g., "ask the user how many errors they see")
+- **Added to an existing task** when the verification is part of that task's scope (e.g., "implement fix AND verify with user that it works")
+
+Either way, the three mandatory elements above must be present.
+
+### Example
+
+Prompt: "Fix hook errors. Plan must include user feedback on error count."
+
+The plan must include a task like:
+
+> **Task N: Verify error reduction with user**
+>
+> **Goal:** Get user confirmation that hook errors have decreased from baseline.
+>
+> **User Verification Required:**
+> Before marking this task complete, you MUST call AskUserQuestion:
+> ```yaml
+> AskUserQuestion:
+>   question: "How many hook errors do you see per Bash command? (baseline: 38)"
+>   header: "Verification"
+>   options:
+>     - label: "Reduced"
+>       description: "Fewer than 38 errors — improvement confirmed"
+>     - label: "Same or worse"
+>       description: "No improvement — needs rework"
+> ```
+>
+> ```json:metadata
+> {"files": [], "verifyCommand": "", "acceptanceCriteria": ["user confirms error reduction"], "requiresUserVerification": true, "userVerificationPrompt": "How many hook errors do you see per Bash command? (baseline: 38)"}
+> ```
+
+<HARD-GATE>
+STOP. Before proceeding to Execution Handoff, you MUST confirm:
+
+1. Did you complete Self-Review step 4 (verification requirement scan)?
+2. If the answer was YES (prompt requires user verification): does `TaskList` show at least one task with `requiresUserVerification: true` in its description?
+
+If the prompt requires user verification and NO verification task exists: **GO BACK.** Create the verification task now. You CANNOT proceed to Execution Handoff without it.
+
+This gate exists because user verification requirements routinely get lost between plan writing and execution. The only way to guarantee they survive is to encode them as native tasks with enforceable metadata.
+</HARD-GATE>
 
 ## Execution Handoff
 
@@ -188,13 +283,13 @@ AskUserQuestion:
 STOP. The user has chosen an execution method. You MUST invoke the corresponding skill using the Skill tool NOW. Do NOT implement tasks yourself — do NOT read files, make edits, or update task statuses. Your ONLY permitted action is invoking the skill below.
 
 **If Subagent-Driven chosen:**
-Invoke the Skill tool: `superpowers-extended-cc:subagent-driven-development`
+Invoke the Skill tool: `superpowers2:subagent-driven-development`
 - The skill handles everything: subagent dispatch, review, task tracking
 - You stay in this session as the coordinator
 - Do NOT start working on tasks directly
 
 **If Parallel Session chosen:**
-Guide the user to open a new session in the worktree, then invoke: `superpowers-extended-cc:executing-plans`
+Guide the user to open a new session in the worktree, then invoke: `superpowers2:executing-plans`
 </HARD-GATE>
 
 ---
@@ -225,10 +320,12 @@ TaskCreate:
     [Key actions from task's Steps — abbreviated]
 
     ```json:metadata
-    {"files": ["path/to/file1.py"], "verifyCommand": "pytest tests/path/ -v", "acceptanceCriteria": ["criterion 1", "criterion 2"]}
+    {"files": ["path/to/file1.py"], "verifyCommand": "pytest tests/path/ -v", "acceptanceCriteria": ["criterion 1", "criterion 2"], "requiresUserVerification": false}
     ```
   activeForm: "Implementing [Component Name]"
 ```
+
+**`requiresUserVerification` is a required field in every task's metadata** — always present, explicitly `true` or `false`. When `true`, also include `userVerificationPrompt` and the standard verification block in the description (see User Verification Enforcement section). This forces an active decision per task rather than allowing verification to be silently omitted.
 
 ### Why Embedded Metadata
 
@@ -299,7 +396,7 @@ Both the plan `.md` and `.tasks.json` must be co-located in `docs/superpowers/pl
 
 Any new session can resume by running:
 ```
-/superpowers-extended-cc:executing-plans <plan-path>
+/superpowers2:executing-plans <plan-path>
 ```
 
 The skill reads the `.tasks.json` file and continues from where it left off.
