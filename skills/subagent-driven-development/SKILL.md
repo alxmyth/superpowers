@@ -55,13 +55,15 @@ digraph process {
         "Dispatch code quality reviewer subagent (skills/subagent-driven-development/code-quality-reviewer-prompt.md)" [shape=box];
         "Code quality reviewer subagent approves?" [shape=diamond];
         "Implementer subagent fixes quality issues" [shape=box];
+        "Task requires user verification? (check json:metadata)" [shape=diamond];
+        "AskUserQuestion: user verification prompt" [shape=box];
         "TaskUpdate: mark task completed" [shape=box];
     }
 
     "Read plan, extract tasks, TaskCreate for each with full text" [shape=box];
     "More tasks remain?" [shape=diamond];
     "Dispatch final code reviewer subagent for entire implementation" [shape=box];
-    "Use superpowers-extended-cc:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
+    "Use superpowers2:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
 
     "Read plan, extract tasks, TaskCreate for each with full text" -> "Dispatch implementer subagent (skills/subagent-driven-development/implementer-prompt.md)";
     "Dispatch implementer subagent (skills/subagent-driven-development/implementer-prompt.md)" -> "Implementer subagent asks questions?";
@@ -76,11 +78,15 @@ digraph process {
     "Dispatch code quality reviewer subagent (skills/subagent-driven-development/code-quality-reviewer-prompt.md)" -> "Code quality reviewer subagent approves?";
     "Code quality reviewer subagent approves?" -> "Implementer subagent fixes quality issues" [label="no"];
     "Implementer subagent fixes quality issues" -> "Dispatch code quality reviewer subagent (skills/subagent-driven-development/code-quality-reviewer-prompt.md)" [label="re-review"];
-    "Code quality reviewer subagent approves?" -> "TaskUpdate: mark task completed" [label="yes"];
+    "Code quality reviewer subagent approves?" -> "Task requires user verification? (check json:metadata)" [label="yes"];
+        "Task requires user verification? (check json:metadata)" -> "AskUserQuestion: user verification prompt" [label="yes"];
+        "Task requires user verification? (check json:metadata)" -> "TaskUpdate: mark task completed" [label="no"];
+        "AskUserQuestion: user verification prompt" -> "TaskUpdate: mark task completed" [label="approved"];
+        "AskUserQuestion: user verification prompt" -> "Implementer subagent fixes quality issues" [label="changes needed"];
     "TaskUpdate: mark task completed" -> "More tasks remain?";
     "More tasks remain?" -> "Dispatch implementer subagent (skills/subagent-driven-development/implementer-prompt.md)" [label="yes"];
     "More tasks remain?" -> "Dispatch final code reviewer subagent for entire implementation" [label="no"];
-    "Dispatch final code reviewer subagent for entire implementation" -> "Use superpowers-extended-cc:finishing-a-development-branch";
+    "Dispatch final code reviewer subagent for entire implementation" -> "Use superpowers2:finishing-a-development-branch";
 }
 ```
 
@@ -90,6 +96,16 @@ When dispatching an implementer subagent:
 1. Read the task's description via TaskGet — metadata is embedded as a `json:metadata` code fence at the end
 2. Parse the metadata JSON and map fields (files, acceptanceCriteria, verifyCommand) to the implementer prompt sections
 3. The implementer should receive ALL structured data — don't make them parse it from prose
+
+## User Verification Gate
+
+After both reviews pass, check the task's `json:metadata` for `"requiresUserVerification": true`.
+
+**If set:** The controller (you) MUST call `AskUserQuestion` using the `userVerificationPrompt` from the metadata before marking the task complete. This is a human-in-the-loop gate — no subagent can satisfy it.
+
+**If the user selects the negative option:** Dispatch the implementer to fix the reported issues, then re-run both reviews, then ask the user again.
+
+**This is the controller's responsibility, not the implementer's or reviewer's.** Subagents cannot call AskUserQuestion — only the controller can. The `requiresUserVerification` flag exists precisely to guarantee human sign-off on critical tasks.
 
 ## Model Selection
 
@@ -252,6 +268,8 @@ Done!
 - Skip review loops (reviewer found issues = implementer fixes = review again)
 - Let implementer self-review replace actual review (both are needed)
 - **Start code quality review before spec compliance is ✅** (wrong order)
+- **Skip user verification when task metadata has `requiresUserVerification: true`** (the user explicitly requested this gate)
+- Let a subagent handle user verification (only the controller can call AskUserQuestion)
 - Move to next task while either review has open issues
 
 **If subagent asks questions:**
@@ -283,13 +301,13 @@ This ensures cross-session resume works correctly. Without this, a new session l
 ## Integration
 
 **Required workflow skills:**
-- **superpowers-extended-cc:using-git-worktrees** - REQUIRED: Set up isolated workspace before starting
-- **superpowers-extended-cc:writing-plans** - Creates the plan this skill executes
-- **superpowers-extended-cc:requesting-code-review** - Code review template for reviewer subagents
-- **superpowers-extended-cc:finishing-a-development-branch** - Complete development after all tasks
+- **superpowers2:using-git-worktrees** - REQUIRED: Set up isolated workspace before starting
+- **superpowers2:writing-plans** - Creates the plan this skill executes
+- **superpowers2:requesting-code-review** - Code review template for reviewer subagents
+- **superpowers2:finishing-a-development-branch** - Complete development after all tasks
 
 **Subagents should use:**
-- **superpowers-extended-cc:test-driven-development** - Subagents follow TDD for each task
+- **superpowers2:test-driven-development** - Subagents follow TDD for each task
 
 **Alternative workflow:**
-- **superpowers-extended-cc:executing-plans** - Use for parallel session instead of same-session execution
+- **superpowers2:executing-plans** - Use for parallel session instead of same-session execution

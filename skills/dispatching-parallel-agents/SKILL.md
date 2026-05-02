@@ -231,3 +231,8 @@ When marking tasks completed via `TaskUpdate`, also sync `.tasks.json`:
 
 - No blockedBy (parallel = independent)
 - Controller is responsible for `.tasks.json` sync (not the dispatched agents)
+
+## Integration
+
+**Related skills:**
+- **superpowers2:subagent-driven-development** — Uses the same parallel dispatch pattern for plan execution (implementation context vs debugging context)

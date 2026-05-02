@@ -15,7 +15,7 @@ Load plan, review critically, execute all tasks, report when complete.
 
 **Announce at start:** "I'm using the executing-plans skill to implement this plan."
 
-**Note:** Tell your human partner that Superpowers works much better with access to subagents. The quality of its work will be significantly higher if run on a platform with subagent support (such as Claude Code or Codex). If subagents are available, use superpowers-extended-cc:subagent-driven-development instead of this skill.
+**Note:** Tell your human partner that Superpowers works much better with access to subagents. The quality of its work will be significantly higher if run on a platform with subagent support (such as Claude Code or Codex). If subagents are available, use superpowers2:subagent-driven-development instead of this skill.
 
 ## The Process
 
@@ -38,7 +38,7 @@ Before calling `using-git-worktrees`, check if a worktree already exists:
 
 1. Run `git worktree list` to see all existing worktrees
 2. If a worktree for the plan's branch already exists: **cd into it — do NOT create a new one**
-3. If on main/master with no worktree: **REQUIRED SUB-SKILL:** Use `superpowers-extended-cc:using-git-worktrees` to create one
+3. If on main/master with no worktree: **REQUIRED SUB-SKILL:** Use `superpowers2:using-git-worktrees` to create one
 
 ### Step 1: Load and Review Plan
 1. Read plan file
@@ -67,15 +67,19 @@ For each task:
 1. Mark as in_progress
 2. Follow each step exactly (plan has bite-sized steps)
 3. **Use metadata for verification:** Parse the `json:metadata` code fence from the task description. Run `verifyCommand` and check each `acceptanceCriteria` before marking complete.
-4. Mark as completed
-5. **Sync `.tasks.json`:** Read the tasks file, update the task's `"status"` to `"completed"` (or `"in_progress"` in step 1), set `"lastUpdated"` to current ISO timestamp, write back. This keeps the persistence file in sync with native tasks for cross-session resume.
+4. **User verification gate:** If `requiresUserVerification` is `true` in the task's `json:metadata`:
+   - You MUST call `AskUserQuestion` using the `userVerificationPrompt` from the metadata (or the verification block in the task description)
+   - If the user selects the negative/rework option: go back to step 2, fix the issues, re-verify, then ask again
+   - **This is NOT optional.** Skipping user verification when the metadata requires it is a plan violation.
+5. Mark as completed
+6. **Sync `.tasks.json`:** Read the tasks file, update the task's `"status"` to `"completed"` (or `"in_progress"` in step 1), set `"lastUpdated"` to current ISO timestamp, write back. This keeps the persistence file in sync with native tasks for cross-session resume.
 
 ### Step 3: Complete Development
 
 After all tasks complete and verified:
 - Announce: "I'm using the finishing-a-development-branch skill to complete this work."
-- **REQUIRED SUB-SKILL:** Use superpowers-extended-cc:finishing-a-development-branch
-- Follow that skill to verify tests, present options, execute choice
+- **REQUIRED SUB-SKILL:** Use superpowers2:finishing-a-development-branch
+- Follow that skill to verify tests, merge to base branch, clean up worktree
 
 ## When to Stop and Ask for Help
 
@@ -99,6 +103,7 @@ After all tasks complete and verified:
 - Review plan critically first
 - Follow plan steps exactly
 - Don't skip verifications
+- Never skip user verification when task metadata requires it — call AskUserQuestion
 - Reference skills when plan says to
 - Stop when blocked, don't guess
 - Never start implementation on main/master branch without explicit user consent
@@ -106,6 +111,6 @@ After all tasks complete and verified:
 ## Integration
 
 **Required workflow skills:**
-- **superpowers-extended-cc:using-git-worktrees** - REQUIRED: Set up isolated workspace before starting
-- **superpowers-extended-cc:writing-plans** - Creates the plan this skill executes
-- **superpowers-extended-cc:finishing-a-development-branch** - Complete development after all tasks
+- **superpowers2:using-git-worktrees** - REQUIRED: Set up isolated workspace before starting
+- **superpowers2:writing-plans** - Creates the plan this skill executes
+- **superpowers2:finishing-a-development-branch** - Complete development after all tasks
