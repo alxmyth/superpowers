@@ -1,0 +1,96 @@
+{
+  "planPath": "docs/superpowers/plans/2026-04-29-fork-resync.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: Pre-flight backup & branch setup",
+      "status": "completed",
+      "description": "**Goal:** Create local backup tag + backup branch, push backup branch to origin, then create the rebuild branch from `main`. After this task, no destructive operation has occurred and a recovery point exists on origin.\n\n**Files:** None (refs only).\n\n**Acceptance Criteria:** backup tag exists, backup branch exists locally, backup branch pushed to origin, rebuild branch checked out.\n\n**Verify:** `git rev-parse main backup/main-pre-rebase-2026-04-29 resync/upstream-v5.2.8-rebuild && git ls-remote origin refs/heads/backup/main-pre-rebase-2026-04-29 && git status --short && git rev-parse --abbrev-ref HEAD`\n\nFull steps in plan: docs/superpowers/plans/2026-04-29-fork-resync.md (Task 0).\n\n```json:metadata\n{\"files\": [], \"verifyCommand\": \"git rev-parse --abbrev-ref HEAD\", \"acceptanceCriteria\": [\"backup tag exists\", \"backup branch exists locally\", \"backup branch pushed to origin\", \"rebuild branch checked out\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: Mixed reset and adopt upstream files",
+      "status": "completed",
+      "blockedBy": [0],
+      "description": "**Goal:** Move HEAD+index to `upstream/main` while leaving working tree at `main`. Restore three upstream-wins files via `git checkout upstream/main -- <path>`.\n\n**Files (working-tree restorations from upstream/main):** hooks/examples/pre-commit-check-tasks.sh, hooks/examples/stop-deflection-guard.sh, tests/claude-code/test-helpers.sh.\n\n**Acceptance Criteria:** HEAD at upstream, 3 upstream-wins files match upstream, ~43 unstaged files remain.\n\n**Verify:** `git rev-parse HEAD && git status --short | wc -l`\n\nFull steps in plan: docs/superpowers/plans/2026-04-29-fork-resync.md (Task 1).\n\n```json:metadata\n{\"files\": [\"hooks/examples/pre-commit-check-tasks.sh\", \"hooks/examples/stop-deflection-guard.sh\", \"tests/claude-code/test-helpers.sh\"], \"verifyCommand\": \"git rev-parse HEAD && git status --short | wc -l\", \"acceptanceCriteria\": [\"HEAD at upstream\", \"3 upstream-wins files restored\", \"~43 unstaged files remain\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Commit 1/9 — chore: rebrand superpowers-extended-cc → superpowers2",
+      "status": "completed",
+      "blockedBy": [1],
+      "description": "**Goal:** Pure namespace string sweep across plugin metadata, command frontmatter, hook strings, skill cross-references, and test scripts. Manifests get version 5.2.8 (matching upstream); commit 9 bumps to 5.2.9.\n\nFull file list and steps in plan: docs/superpowers/plans/2026-04-29-fork-resync.md (Task 2).\n\n```json:metadata\n{\"files\": [\".claude-plugin/marketplace.json\", \".claude-plugin/plugin.json\", \".cursor-plugin/plugin.json\", \"gemini-extension.json\", \".github/ISSUE_TEMPLATE/config.yml\", \"commands/brainstorm.md\", \"commands/execute-plan.md\", \"commands/write-plan.md\", \"hooks/session-start\", \"skills/requesting-code-review/SKILL.md\", \"skills/using-superpowers/references/codex-tools.md\", \"skills/using-superpowers/references/copilot-tools.md\", \"skills/writing-skills/testing-skills-with-subagents.md\", \"tests/claude-code/test-fork-validation.sh\", \"tests/claude-code/test-subagent-driven-development.sh\", \"tests/claude-code/test-subagent-driven-development-integration.sh\", \"tests/subagent-driven-dev/run-test.sh\", \"tests/subagent-driven-dev/go-fractals/plan.md\", \"tests/subagent-driven-dev/go-fractals/scaffold.sh\", \"tests/subagent-driven-dev/svelte-todo/plan.md\", \"tests/subagent-driven-dev/svelte-todo/scaffold.sh\"], \"verifyCommand\": \"git show HEAD --stat | tail -1\", \"acceptanceCriteria\": [\"21 files in commit\", \"no superpowers-extended-cc strings remain (except auto-discovery example)\", \"version is 5.2.8\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Commit 2/9 — feat(skills): writing-plans HARD-GATE for user verification",
+      "status": "completed",
+      "blockedBy": [2],
+      "description": "**Goal:** Single-file commit. The HARD-GATE rewrite of skills/writing-plans/SKILL.md (combines fork commits 0cc4aba, fa0c34f, 8e37fba). Blocks plan handoff until user verification is encoded as a native task.\n\nFull steps in plan: docs/superpowers/plans/2026-04-29-fork-resync.md (Task 3).\n\n```json:metadata\n{\"files\": [\"skills/writing-plans/SKILL.md\"], \"verifyCommand\": \"git show HEAD --stat | tail -1\", \"acceptanceCriteria\": [\"1 file in commit\", \"HARD-GATE appears in committed content\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Commit 3/9 — feat(skills): finishing-a-development-branch overhaul",
+      "status": "completed",
+      "blockedBy": [3],
+      "description": "**Goal:** Single-file commit. 140-line rewrite removing the four-options menu, replacing it with a single canonical flow.\n\nFull steps in plan: docs/superpowers/plans/2026-04-29-fork-resync.md (Task 4).\n\n```json:metadata\n{\"files\": [\"skills/finishing-a-development-branch/SKILL.md\"], \"verifyCommand\": \"git show HEAD --stat | tail -1\", \"acceptanceCriteria\": [\"1 file in commit\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Commit 4/9 — feat(skills): subagent-driven-development pipeline + parallel review",
+      "status": "pending",
+      "blockedBy": [4],
+      "description": "**Goal:** Pipeline scheduling, parallel review, executing-plans verification gate, dispatching-parallel-agents Integration section. 7 files (1 new + 6 modified).\n\nFull steps in plan: docs/superpowers/plans/2026-04-29-fork-resync.md (Task 5).\n\n```json:metadata\n{\"files\": [\"skills/subagent-driven-development/SKILL.md\", \"skills/subagent-driven-development/code-quality-reviewer-prompt.md\", \"skills/subagent-driven-development/implementer-prompt.md\", \"skills/subagent-driven-development/spec-reviewer-prompt.md\", \"skills/shared/task-format-reference.md\", \"skills/executing-plans/SKILL.md\", \"skills/dispatching-parallel-agents/SKILL.md\"], \"verifyCommand\": \"git show HEAD --name-status\", \"acceptanceCriteria\": [\"7 files in commit\", \"task-format-reference.md is added\", \"other 6 are modified\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Commit 5/9 — feat(hooks): TaskUpdate completion verification hook",
+      "status": "pending",
+      "blockedBy": [5],
+      "description": "**Goal:** PreToolUse hook preventing TaskUpdate to `completed` for tasks with `requiresUserVerification: true` in metadata until verification has occurred. 2 files (1 new hook script + hooks.json modification).\n\nFull steps in plan: docs/superpowers/plans/2026-04-29-fork-resync.md (Task 6).\n\n```json:metadata\n{\"files\": [\"hooks/hooks.json\", \"hooks/pre-task-complete-check-verification\"], \"verifyCommand\": \"git show HEAD --stat | tail -1\", \"acceptanceCriteria\": [\"2 files in commit\", \"TaskUpdate matcher present\", \"verification script executable\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Commit 6/9 — chore(skills): cross-reference and reference-syntax cleanup",
+      "status": "pending",
+      "blockedBy": [6],
+      "description": "**Goal:** Editorial sweep (fork commits d92917e and 1edf86a). Fix @-syntax cross-refs to backticks, rename {PLAN_REFERENCE} placeholder, de-attribute personal names, fix section numbering. 5 files.\n\nFull steps in plan: docs/superpowers/plans/2026-04-29-fork-resync.md (Task 7).\n\n```json:metadata\n{\"files\": [\"skills/test-driven-development/SKILL.md\", \"skills/using-git-worktrees/SKILL.md\", \"skills/writing-skills/SKILL.md\", \"skills/systematic-debugging/SKILL.md\", \"skills/requesting-code-review/code-reviewer.md\"], \"verifyCommand\": \"git show HEAD --stat | tail -1\", \"acceptanceCriteria\": [\"5 files in commit\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: Commit 7/9 — docs: rewrite README and add fork docs",
+      "status": "pending",
+      "blockedBy": [7],
+      "description": "**Goal:** Fork documentation. Rewrite README, add CHANGELOG, add codex-app-compatibility + fork-resync design/plan/tasks docs. 7 files (1 modified + 6 added, including the .tasks.json companion).\n\nFull steps in plan: docs/superpowers/plans/2026-04-29-fork-resync.md (Task 8).\n\n```json:metadata\n{\"files\": [\"README.md\", \"CHANGELOG.md\", \"docs/superpowers/specs/2026-03-23-codex-app-compatibility-design.md\", \"docs/superpowers/plans/2026-03-23-codex-app-compatibility.md\", \"docs/superpowers/specs/2026-04-29-fork-resync-design.md\", \"docs/superpowers/plans/2026-04-29-fork-resync.md\", \"docs/superpowers/plans/2026-04-29-fork-resync.md.tasks.json\"], \"verifyCommand\": \"git show HEAD --stat | tail -1\", \"acceptanceCriteria\": [\"7 files in commit\", \"README modified, 6 docs added\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: Commit 8/9 — refactor: remove pcvelz-specific tooling",
+      "status": "pending",
+      "blockedBy": [8],
+      "description": "**Goal:** Deletions only. Remove pcvelz's Codex mirroring script and the systematic-debugging creation log. 2 files deleted.\n\nFull steps in plan: docs/superpowers/plans/2026-04-29-fork-resync.md (Task 9).\n\n```json:metadata\n{\"files\": [\"scripts/sync-to-codex-plugin.sh\", \"skills/systematic-debugging/CREATION-LOG.md\"], \"verifyCommand\": \"git diff HEAD~1 HEAD --name-status\", \"acceptanceCriteria\": [\"2 file deletions in commit\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: Commit 9/9 — chore: bump version to 5.2.9",
+      "status": "pending",
+      "blockedBy": [9],
+      "description": "**Goal:** Final commit. Bump fork version from 5.2.8 (matching upstream) to 5.2.9 across all manifests.\n\nFull steps in plan: docs/superpowers/plans/2026-04-29-fork-resync.md (Task 10).\n\n```json:metadata\n{\"files\": [\".claude-plugin/plugin.json\", \".claude-plugin/marketplace.json\", \".cursor-plugin/plugin.json\", \"gemini-extension.json\"], \"verifyCommand\": \"git show HEAD --stat | tail -1\", \"acceptanceCriteria\": [\"4 files in commit\", \"only version line changes\", \"version is 5.2.9\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 11,
+      "subject": "Task 11: Final verification suite",
+      "status": "pending",
+      "blockedBy": [10],
+      "description": "**Goal:** Run the spec's 6 verification checks. All must pass before user verification (Task 12).\n\nFull steps in plan: docs/superpowers/plans/2026-04-29-fork-resync.md (Task 11).\n\n```json:metadata\n{\"files\": [], \"verifyCommand\": \"git diff HEAD..main --name-only | wc -l\", \"acceptanceCriteria\": [\"working tree clean\", \"9 commits ahead of upstream\", \"diff against main shows only 3 untouched files\", \"fork-validation test passes\", \"per-commit themes match\"], \"requiresUserVerification\": false}\n```"
+    },
+    {
+      "id": 12,
+      "subject": "Task 12: User verification of rebuild branch",
+      "status": "pending",
+      "blockedBy": [11],
+      "description": "**Goal:** Get explicit user approval of the rebuild branch before any push of `main`.\n\n**User Verification Required:**\nBefore marking this task complete, you MUST call AskUserQuestion:\n\n```yaml\nAskUserQuestion:\n  question: \"Rebuild branch resync/upstream-v5.2.8-rebuild has 9 commits and Task 11 verification passed. Diff against upstream covers ~45 files; diff against main shows only the 3 upstream-wins files. Does the rebuild branch look correct?\"\n  header: \"Verification\"\n  options:\n    - label: \"Approved — proceed to landing\"\n      description: \"Rebuild looks right. Tell me what to do next: force-push to main, push branch + open PR, or hold for further review.\"\n    - label: \"Needs changes\"\n      description: \"Something looks off. Describe what to revise; we'll iterate before any push.\"\n```\n\n**If \"Needs changes\":** Task is NOT complete. Iterate on rebuild branch (never on main), re-run Task 11, re-call AskUserQuestion.\n\n**If \"Approved\":** Do NOT auto-push. Wait for user's explicit landing instruction (force-push to main, push branch + PR, etc.).\n\nFull steps in plan: docs/superpowers/plans/2026-04-29-fork-resync.md (Task 12).\n\n```json:metadata\n{\"files\": [], \"verifyCommand\": \"\", \"acceptanceCriteria\": [\"user confirms rebuild branch is correct\"], \"requiresUserVerification\": true, \"userVerificationPrompt\": \"Rebuild branch resync/upstream-v5.2.8-rebuild has 9 commits and Task 11 verification passed. Diff against upstream covers ~45 files; diff against main shows only the 3 upstream-wins files. Does the rebuild branch look correct?\"}\n```"
+    }
+  ],
+  "lastUpdated": "2026-04-30T00:05:00Z"
+}

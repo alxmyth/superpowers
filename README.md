@@ -55,20 +55,12 @@ This fork integrates Claude Code-native features into the Superpowers workflow.
 
 ## Installation
 
-### Option 1: Via Marketplace (recommended)
-
 ```bash
 # Register marketplace
-/plugin marketplace add pcvelz/superpowers
+/plugin marketplace add alxmyth/superpowers
 
 # Install plugin
-/plugin install superpowers-extended-cc@superpowers-extended-cc-marketplace
-```
-
-### Option 2: Direct URL
-
-```bash
-/plugin install --source url https://github.com/pcvelz/superpowers.git
+/plugin install superpowers2@superpowers2-marketplace
 ```
 
 ### Verify Installation
@@ -81,9 +73,9 @@ Check that commands appear:
 
 ```
 # Should see:
-# /superpowers-extended-cc:brainstorming - Interactive design refinement
-# /superpowers-extended-cc:writing-plans - Create implementation plan
-# /superpowers-extended-cc:executing-plans - Execute plan in batches
+# /superpowers2:brainstorming - Interactive design refinement
+# /superpowers2:writing-plans - Create implementation plan
+# /superpowers2:executing-plans - Execute plan in batches
 ```
 
 ## The Basic Workflow
@@ -202,9 +194,9 @@ This blocks the model from calling `EnterPlanMode`, ensuring the brainstorming a
 
 ### Block Commits With Incomplete Tasks
 
-Optional `PreToolUse` hook that blocks `git commit` while a native task is `in_progress`. Pending tasks pass through, so per-task commit flows work as intended.
+When using native tasks, the agent should not commit until all tasks are finished. This plugin includes an example hook that blocks `git commit` when tasks are still open.
 
-Opt in via `.claude/settings.local.json`:
+Add this to your `.claude/settings.local.json`:
 
 ```json
 {
@@ -215,7 +207,7 @@ Opt in via `.claude/settings.local.json`:
         "hooks": [
           {
             "type": "command",
-            "command": "bash ~/.claude/plugins/marketplaces/superpowers-extended-cc-marketplace/hooks/examples/pre-commit-check-tasks.sh"
+            "command": "bash ~/.claude/plugins/marketplaces/superpowers2-marketplace/hooks/examples/pre-commit-check-tasks.sh"
           }
         ]
       }
@@ -224,40 +216,14 @@ Opt in via `.claude/settings.local.json`:
 }
 ```
 
-See the header of `hooks/examples/pre-commit-check-tasks.sh` for how it parses the session transcript and which task states count as open.
-
-### Block Low-Context Stop Excuses
-
-Optional `Stop`-event hook that blocks "fresh session later" / "context is full" deflections when real context usage is below 50%.
-
-Opt in via `.claude/settings.local.json`:
-
-```json
-{
-  "hooks": {
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash ~/.claude/plugins/marketplaces/superpowers-extended-cc-marketplace/hooks/examples/stop-deflection-guard.sh"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-See the header of `hooks/examples/stop-deflection-guard.sh` for the full list of blocked phrases, configuration environment variables, and fail-open behavior.
+The hook ships with the plugin at `hooks/examples/pre-commit-check-tasks.sh`. The marketplace path is stable across versions. It parses the session transcript for `TaskCreate`/`TaskUpdate` calls and blocks `git commit` when any tasks are not completed, cancelled, or deleted. Non-commit Bash commands pass through unaffected.
 
 ## Updating
 
 Skills update automatically when you update the plugin:
 
 ```bash
-/plugin update superpowers-extended-cc@superpowers-extended-cc-marketplace
+/plugin update superpowers2@superpowers2-marketplace
 ```
 
 ## Upstream Compatibility
@@ -270,5 +236,5 @@ MIT License - see LICENSE file for details
 
 ## Support
 
-- **Issues**: https://github.com/pcvelz/superpowers/issues
+- **Issues**: https://github.com/alxmyth/superpowers/issues
 - **Upstream**: https://github.com/obra/superpowers
