@@ -1,5 +1,5 @@
 {
-  "name": "superpowers-extended-cc-marketplace",
+  "name": "superpowers2-marketplace",
   "description": "Marketplace for Superpowers Extended CC - Claude Code-specific enhancements",
   "owner": {
     "name": "pcvelz",
@@ -7,7 +7,7 @@
   },
   "plugins": [
     {
-      "name": "superpowers-extended-cc",
+      "name": "superpowers2",
       "description": "Claude Code-specific fork of Superpowers with native task management and CC-specific enhancements",
       "version": "5.2.8",
       "source": "./",
